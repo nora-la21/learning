@@ -14,39 +14,34 @@ function toBCP47(lang: string): string {
   return LANG_MAP[lang.toLowerCase()] ?? lang
 }
 
-function getVoices(): Promise<SpeechSynthesisVoice[]> {
-  return new Promise(resolve => {
-    const v = window.speechSynthesis.getVoices()
-    if (v.length > 0) return resolve(v)
-    const handler = () => resolve(window.speechSynthesis.getVoices())
-    window.speechSynthesis.addEventListener('voiceschanged', handler, { once: true })
-    // Fallback: if voiceschanged never fires, resolve after 1s with whatever we have
-    setTimeout(() => resolve(window.speechSynthesis.getVoices()), 1000)
-  })
-}
-
 export function useSpeech() {
   const speak = useCallback((text: string, lang: string = 'nl', rate = 0.85) => {
-    if (!window.speechSynthesis) return
-
+    if (!window.speechSynthesis || !text?.trim()) return
     const bcp = toBCP47(lang)
 
-    getVoices().then(voices => {
+    const trySpeak = () => {
       window.speechSynthesis.cancel()
-
-      // rAF ensures the cancel is processed before we enqueue the new utterance
-      requestAnimationFrame(() => {
+      // 50 ms gives Chrome time to process cancel before we enqueue
+      setTimeout(() => {
         const utterance = new SpeechSynthesisUtterance(text)
         utterance.lang = bcp
         utterance.rate = rate
         utterance.pitch = 1.0
+        const voices = window.speechSynthesis.getVoices()
         utterance.voice =
           voices.find(v => v.lang === bcp) ??
           voices.find(v => v.lang.startsWith(bcp.split('-')[0])) ??
           null
         window.speechSynthesis.speak(utterance)
-      })
-    })
+      }, 50)
+    }
+
+    // If voices aren't loaded yet (first ever call), wait for them
+    if (window.speechSynthesis.getVoices().length === 0) {
+      window.speechSynthesis.addEventListener('voiceschanged', trySpeak, { once: true })
+    } else {
+      trySpeak()
+    }
   }, [])
 
   const cancel = useCallback(() => {
