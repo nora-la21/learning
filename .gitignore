@@ -1,0 +1,7 @@
+backend/.venv/
+data/learning.db
+frontend/node_modules/
+frontend/dist/
+__pycache__/
+*.pyc
+.env
