@@ -19,6 +19,7 @@ const MODE_LABELS: Record<string, string> = {
 interface Props {
   listId: number
   mode: GameMode
+  sessionSize?: number
   onBack: () => void
 }
 
@@ -29,7 +30,7 @@ type FeedbackState = {
   correctAnswer: string
 }
 
-export default function GameShell({ listId, mode, onBack }: Props) {
+export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [question, setQuestion] = useState<GameQuestion | null>(null)
   const [total, setTotal] = useState(0)
@@ -59,7 +60,7 @@ export default function GameShell({ listId, mode, onBack }: Props) {
     setXp(0)
     setStreak(0)
     try {
-      const session = await api.startGame(listId, mode)
+      const session = await api.startGame(listId, mode, sessionSize)
       setSessionId(session.session_id)
       setTotal(session.total)
       await loadNext(session.session_id)

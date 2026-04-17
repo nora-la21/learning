@@ -12,9 +12,12 @@ const MODES: { id: GameMode; label: string; desc: string; icon: string; highligh
   { id: 'reverse_type_it', label: 'Type It (English → Dutch)', desc: 'See the English word, type the Dutch translation', icon: '🔤' },
 ]
 
+const SESSION_SIZES = [5, 10, 20, 50]
+
 export default function LearnPage() {
   const { listId } = useParams<{ listId: string }>()
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null)
+  const [sessionSize, setSessionSize] = useState(10)
   const navigate = useNavigate()
   const id = Number(listId)
 
@@ -25,6 +28,7 @@ export default function LearnPage() {
           <GameShell
             listId={id}
             mode={selectedMode}
+            sessionSize={sessionSize}
             onBack={() => setSelectedMode(null)}
           />
         </div>
@@ -40,10 +44,30 @@ export default function LearnPage() {
           className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition text-sm mb-6 block"
         >← My Vocabulary</button>
 
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-2">Choose a practice mode</h1>
-        <p className="text-gray-500 dark:text-gray-400 mb-6 text-sm">
+        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Choose a practice mode</h1>
+        <p className="text-gray-500 dark:text-gray-400 mb-5 text-sm">
           Wrong answers repeat until you get them right ✓
         </p>
+
+        {/* Session size picker */}
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 mb-5 flex items-center gap-4">
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 shrink-0">Words per session:</span>
+          <div className="flex gap-2">
+            {SESSION_SIZES.map(size => (
+              <button
+                key={size}
+                onClick={() => setSessionSize(size)}
+                className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                  sessionSize === size
+                    ? 'bg-violet-600 text-white'
+                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                }`}
+              >
+                {size}
+              </button>
+            ))}
+          </div>
+        </div>
 
         <div className="space-y-3">
           {MODES.map(m => (
