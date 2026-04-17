@@ -17,9 +17,10 @@ def start_game(body: GameStartRequest):
         raise HTTPException(status_code=400, detail=str(e))
     return GameStartResponse(
         session_id=session.session_id,
-        total=len(session.word_ids),
+        total=session.total,
         list_source_lang=session.source_lang,
         list_target_lang=session.target_lang,
+        all_modes=session.all_modes,
     )
 
 
