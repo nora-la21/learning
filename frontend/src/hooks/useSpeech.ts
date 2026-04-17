@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 
 const LANG_MAP: Record<string, string> = {
-  nl: 'nl-NL',
+  nl: 'nl-BE',  // Chrome on Mac has Ellen (nl-BE), not nl-NL
   en: 'en-US',
   fr: 'fr-FR',
   de: 'de-DE',
@@ -18,22 +18,25 @@ export function useSpeech() {
   const speak = useCallback((text: string, lang: string = 'nl', rate = 0.85) => {
     if (!window.speechSynthesis || !text?.trim()) return
     const bcp = toBCP47(lang)
+    const langPrefix = bcp.split('-')[0]
 
     const doSpeak = () => {
+      const voices = window.speechSynthesis.getVoices()
+      const voice =
+        voices.find(v => v.lang === bcp) ??
+        voices.find(v => v.lang.startsWith(langPrefix)) ??
+        null
+
       const utterance = new SpeechSynthesisUtterance(text)
-      utterance.lang = bcp
+      utterance.voice = voice
+      // Use the voice's actual lang tag to avoid silent mismatch failures
+      utterance.lang = voice?.lang ?? bcp
       utterance.rate = rate
       utterance.pitch = 1.0
-      const voices = window.speechSynthesis.getVoices()
-      utterance.voice =
-        voices.find(v => v.lang === bcp) ??
-        voices.find(v => v.lang.startsWith(bcp.split('-')[0])) ??
-        null
       window.speechSynthesis.speak(utterance)
     }
 
     const trySpeak = () => {
-      // Only cancel if already speaking — unnecessary cancel() breaks Chrome
       if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
         window.speechSynthesis.cancel()
         setTimeout(doSpeak, 100)
