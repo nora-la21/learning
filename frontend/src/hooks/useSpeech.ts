@@ -1,7 +1,7 @@
 import { useCallback } from 'react'
 
 const LANG_MAP: Record<string, string> = {
-  nl: 'nl-BE',  // Chrome on Mac has Ellen (nl-BE), not nl-NL
+  nl: 'nl-NL',
   en: 'en-US',
   fr: 'fr-FR',
   de: 'de-DE',
