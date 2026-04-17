@@ -18,7 +18,8 @@ class WordListResponse(BaseModel):
     name: str
     source_lang: str
     target_lang: str
-    source_file: Optional[str]
+    source_file: Optional[str] = None
+    builtin: int = 0
     created_at: str
     word_count: int = 0
 
@@ -66,17 +67,22 @@ class GameStartResponse(BaseModel):
     total: int
     list_source_lang: str
     list_target_lang: str
+    all_modes: list[str]
 
 
 class GameQuestion(BaseModel):
     question_id: str
     word_id: int
     prompt: str
+    prompt_lang: str
     options: Optional[list[str]]
     mode: str
     source_lang: str
     target_lang: str
     option_langs: Optional[list[str]] = None
+    is_retry: bool = False
+    mode_index: int = 0
+    total_modes: int = 1
 
 
 class GameAnswerRequest(BaseModel):
@@ -88,11 +94,16 @@ class GameAnswerRequest(BaseModel):
 
 class GameAnswerResponse(BaseModel):
     correct: bool
+    almost: bool = False
     correct_answer: str
     xp_gained: int
     streak: int
     progress_index: int
     total: int
+    mode_complete: bool = False
+    new_mode: Optional[str] = None
+    mode_index: int = 0
+    total_modes: int = 1
 
 
 class ProgressSummary(BaseModel):

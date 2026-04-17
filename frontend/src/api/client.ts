@@ -12,12 +12,15 @@ async function req<T>(path: string, options?: RequestInit): Promise<T> {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
     throw new Error(err.detail || res.statusText)
   }
+  if (res.status === 204) return undefined as T
   return res.json()
 }
 
 export const api = {
-  // Word lists
-  getLists: () => req<WordList[]>('/lists'),
+  getLists: (builtin?: boolean) => {
+    const qs = builtin === true ? '?builtin=true' : builtin === false ? '?builtin=false' : ''
+    return req<WordList[]>(`/lists${qs}`)
+  },
   getWords: (listId: number) => req<Word[]>(`/lists/${listId}/words`),
   deleteList: (listId: number) => req<void>(`/lists/${listId}`, { method: 'DELETE' }),
   updateWord: (wordId: number, data: Partial<WordPair>) =>
@@ -28,7 +31,6 @@ export const api = {
     }),
   deleteWord: (wordId: number) => req<void>(`/words/${wordId}`, { method: 'DELETE' }),
 
-  // Upload
   uploadPreview: (file: File): Promise<UploadPreview> => {
     const form = new FormData()
     form.append('file', file)
@@ -41,7 +43,6 @@ export const api = {
       body: JSON.stringify({ list_name: listName, source_lang: sourceLang, target_lang: targetLang, words, source_file: sourceFile }),
     }),
 
-  // Game
   startGame: (listId: number, mode: GameMode, sessionSize = 20): Promise<GameStartResponse> =>
     req<GameStartResponse>('/game/start', {
       method: 'POST',
@@ -56,7 +57,6 @@ export const api = {
       body: JSON.stringify({ session_id: sessionId, word_id: wordId, chosen, time_ms: timeMs }),
     }),
 
-  // Progress
   getProgressSummary: (listId: number) => req<ProgressSummary>(`/progress/summary?list_id=${listId}`),
   getWordProgress: (listId: number) => req<WordProgressDetail[]>(`/progress/words?list_id=${listId}`),
   getHeatmap: () => req<HeatmapEntry[]>('/progress/heatmap'),

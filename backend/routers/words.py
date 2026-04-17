@@ -1,4 +1,5 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from typing import Optional
 from database import get_db
 from models import WordListResponse, WordResponse, WordUpdate
 
@@ -6,14 +7,21 @@ router = APIRouter(prefix="/api", tags=["words"])
 
 
 @router.get("/lists", response_model=list[WordListResponse])
-def get_lists():
+def get_lists(builtin: Optional[bool] = Query(None)):
     conn = get_db()
-    rows = conn.execute("""
+    if builtin is True:
+        where = "WHERE wl.builtin = 1"
+    elif builtin is False:
+        where = "WHERE wl.builtin = 0"
+    else:
+        where = ""
+    rows = conn.execute(f"""
         SELECT wl.*, COUNT(w.id) as word_count
         FROM word_lists wl
         LEFT JOIN words w ON w.list_id = wl.id
+        {where}
         GROUP BY wl.id
-        ORDER BY wl.created_at DESC
+        ORDER BY wl.builtin DESC, wl.created_at DESC
     """).fetchall()
     conn.close()
     return [dict(r) for r in rows]
@@ -36,11 +44,16 @@ def get_words(list_id: int):
 @router.delete("/lists/{list_id}", status_code=204)
 def delete_list(list_id: int):
     conn = get_db()
-    result = conn.execute("DELETE FROM word_lists WHERE id = ?", (list_id,))
+    row = conn.execute("SELECT builtin FROM word_lists WHERE id = ?", (list_id,)).fetchone()
+    if not row:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Word list not found")
+    if row["builtin"]:
+        conn.close()
+        raise HTTPException(status_code=403, detail="Cannot delete built-in word lists")
+    conn.execute("DELETE FROM word_lists WHERE id = ?", (list_id,))
     conn.commit()
     conn.close()
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Word list not found")
 
 
 @router.patch("/words/{word_id}", response_model=WordResponse)

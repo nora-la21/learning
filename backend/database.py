@@ -1,5 +1,4 @@
 import sqlite3
-import os
 from pathlib import Path
 
 DB_PATH = Path(__file__).parent.parent / "data" / "learning.db"
@@ -22,6 +21,7 @@ def init_db() -> None:
             source_lang TEXT NOT NULL DEFAULT 'nl',
             target_lang TEXT NOT NULL DEFAULT 'en',
             source_file TEXT,
+            builtin     INTEGER NOT NULL DEFAULT 0,
             created_at  TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
@@ -50,11 +50,39 @@ def init_db() -> None:
         CREATE TABLE IF NOT EXISTS answer_events (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             word_id     INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
-            mode        TEXT NOT NULL CHECK(mode IN ('multiple_choice','reverse_mc','listening','type_it')),
+            mode        TEXT NOT NULL,
             correct     INTEGER NOT NULL,
             time_ms     INTEGER,
             answered_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
     """)
+    # Migration: add builtin column to existing databases
+    try:
+        conn.execute("ALTER TABLE word_lists ADD COLUMN builtin INTEGER NOT NULL DEFAULT 0")
+        conn.commit()
+    except Exception:
+        pass  # column already exists
+    conn.close()
+
+
+def seed_builtin_lists() -> None:
+    from data.builtin_words import A1_DUTCH, A2_DUTCH
+
+    conn = get_db()
+    existing = conn.execute("SELECT COUNT(*) FROM word_lists WHERE builtin=1").fetchone()[0]
+    if existing > 0:
+        conn.close()
+        return
+
+    for level, words in [("A1 — Basic Vocabulary", A1_DUTCH), ("A2 — Elementary Vocabulary", A2_DUTCH)]:
+        cursor = conn.execute(
+            "INSERT INTO word_lists (name, source_lang, target_lang, builtin) VALUES (?, 'nl', 'en', 1)",
+            (f"🇳🇱 Dutch {level}",),
+        )
+        list_id = cursor.lastrowid
+        conn.executemany(
+            "INSERT OR IGNORE INTO words (list_id, source_word, target_word) VALUES (?, ?, ?)",
+            [(list_id, src, tgt) for src, tgt in words],
+        )
     conn.commit()
     conn.close()

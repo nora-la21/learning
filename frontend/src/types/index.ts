@@ -4,6 +4,7 @@ export interface WordList {
   source_lang: string
   target_lang: string
   source_file: string | null
+  builtin: number
   created_at: string
   word_count: number
 }
@@ -37,26 +38,36 @@ export interface GameStartResponse {
   total: number
   list_source_lang: string
   list_target_lang: string
+  all_modes: string[]
 }
 
 export interface GameQuestion {
   question_id: string
   word_id: number
   prompt: string
+  prompt_lang: string
   options: string[] | null
   mode: string
   source_lang: string
   target_lang: string
   option_langs: string[] | null
+  is_retry: boolean
+  mode_index: number
+  total_modes: number
 }
 
 export interface GameAnswerResponse {
   correct: boolean
+  almost: boolean
   correct_answer: string
   xp_gained: number
   streak: number
   progress_index: number
   total: number
+  mode_complete: boolean
+  new_mode: string | null
+  mode_index: number
+  total_modes: number
 }
 
 export interface ProgressSummary {
@@ -87,4 +98,10 @@ export interface HeatmapEntry {
   count: number
 }
 
-export type GameMode = 'multiple_choice' | 'reverse_mc' | 'listening' | 'type_it'
+export type GameMode =
+  | 'multiple_choice'
+  | 'reverse_mc'
+  | 'listening'
+  | 'type_it'
+  | 'reverse_type_it'
+  | 'all_in_one'

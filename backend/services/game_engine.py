@@ -4,27 +4,50 @@ from dataclasses import dataclass, field
 from typing import Optional
 from database import get_db
 
-VALID_MODES = {"multiple_choice", "reverse_mc", "listening", "type_it"}
+INDIVIDUAL_MODES = {"multiple_choice", "reverse_mc", "listening", "type_it", "reverse_type_it"}
+
+ALL_IN_ONE_SEQUENCE = ["multiple_choice", "reverse_mc", "listening", "type_it", "reverse_type_it"]
 
 
 @dataclass
 class GameSession:
     session_id: str
     list_id: int
-    mode: str
-    word_ids: list[int]
-    current_index: int = 0
+    all_modes: list
+    current_mode_index: int
+    base_word_ids: list
+    word_queue: list
+    wrong_this_pass: list
+    correctly_done_this_mode: set = field(default_factory=set)
     streak: int = 0
     xp: int = 0
     source_lang: str = "nl"
     target_lang: str = "en"
+
+    @property
+    def mode(self) -> str:
+        if self.current_mode_index >= len(self.all_modes):
+            return self.all_modes[-1]
+        return self.all_modes[self.current_mode_index]
+
+    @property
+    def total(self) -> int:
+        return len(self.all_modes) * len(self.base_word_ids)
+
+    @property
+    def progress(self) -> int:
+        return self.current_mode_index * len(self.base_word_ids) + len(self.correctly_done_this_mode)
+
+    @property
+    def is_complete(self) -> bool:
+        return self.current_mode_index >= len(self.all_modes)
 
 
 _sessions: dict[str, GameSession] = {}
 
 
 def create_session(list_id: int, mode: str, session_size: int) -> GameSession:
-    if mode not in VALID_MODES:
+    if mode not in INDIVIDUAL_MODES and mode != "all_in_one":
         raise ValueError(f"Invalid mode: {mode}")
 
     conn = get_db()
@@ -63,25 +86,31 @@ def create_session(list_id: int, mode: str, session_size: int) -> GameSession:
     ids = [x[0] for x in weighted]
     weights = [x[1] for x in weighted]
     size = min(session_size, len(ids))
-    selected = random.choices(ids, weights=weights, k=size)
-    # deduplicate while preserving weighted order
+    selected = random.choices(ids, weights=weights, k=size * 2)
     seen: set[int] = set()
     unique: list[int] = []
     for wid in selected:
         if wid not in seen:
             seen.add(wid)
             unique.append(wid)
-    # fill up if deduplication reduced count
+            if len(unique) >= size:
+                break
     remaining = [i for i in ids if i not in seen]
     random.shuffle(remaining)
     unique.extend(remaining[: size - len(unique)])
+
+    all_modes = ALL_IN_ONE_SEQUENCE if mode == "all_in_one" else [mode]
 
     session_id = str(uuid.uuid4())
     session = GameSession(
         session_id=session_id,
         list_id=list_id,
-        mode=mode,
-        word_ids=unique,
+        all_modes=all_modes,
+        current_mode_index=0,
+        base_word_ids=unique[:],
+        word_queue=unique[:],
+        wrong_this_pass=[],
+        correctly_done_this_mode=set(),
         source_lang=list_row["source_lang"],
         target_lang=list_row["target_lang"],
     )
@@ -91,10 +120,12 @@ def create_session(list_id: int, mode: str, session_size: int) -> GameSession:
 
 def get_next_question(session_id: str) -> Optional[dict]:
     session = _sessions.get(session_id)
-    if not session or session.current_index >= len(session.word_ids):
+    if not session or session.is_complete:
+        return None
+    if not session.word_queue:
         return None
 
-    word_id = session.word_ids[session.current_index]
+    word_id = session.word_queue[0]
     conn = get_db()
     word = conn.execute("SELECT * FROM words WHERE id = ?", (word_id,)).fetchone()
     if not word:
@@ -109,75 +140,59 @@ def get_next_question(session_id: str) -> Optional[dict]:
 
     mode = session.mode
     question_id = str(uuid.uuid4())
+    is_retry = word_id not in session.correctly_done_this_mode and word_id in session.wrong_this_pass or \
+               (word_id not in session.base_word_ids[:session.base_word_ids.index(word_id) + 1]
+                if word_id in session.base_word_ids else False)
+    # simpler: is_retry if this word has already been seen wrong this pass
+    is_retry = word_id in session.wrong_this_pass
 
     if mode == "multiple_choice":
         prompt = word["source_word"]
-        correct = word["target_word"]
+        prompt_lang = session.source_lang
         pool = [r["target_word"] for r in all_words]
-        distractors = _generate_distractors(correct, pool)
-        options = distractors + [correct]
-        random.shuffle(options)
+        options = _build_options(word["target_word"], pool)
         option_langs = [session.target_lang] * len(options)
-        return {
-            "question_id": question_id,
-            "word_id": word_id,
-            "prompt": prompt,
-            "options": options,
-            "mode": mode,
-            "source_lang": session.source_lang,
-            "target_lang": session.target_lang,
-            "option_langs": option_langs,
-        }
 
     elif mode == "reverse_mc":
         prompt = word["target_word"]
-        correct = word["source_word"]
+        prompt_lang = session.target_lang
         pool = [r["source_word"] for r in all_words]
-        distractors = _generate_distractors(correct, pool)
-        options = distractors + [correct]
-        random.shuffle(options)
+        options = _build_options(word["source_word"], pool)
         option_langs = [session.source_lang] * len(options)
-        return {
-            "question_id": question_id,
-            "word_id": word_id,
-            "prompt": prompt,
-            "options": options,
-            "mode": mode,
-            "source_lang": session.source_lang,
-            "target_lang": session.target_lang,
-            "option_langs": option_langs,
-        }
 
     elif mode == "listening":
-        # prompt is the source word (for TTS), options are source words
-        correct = word["source_word"]
+        prompt = word["source_word"]
+        prompt_lang = session.source_lang
         pool = [r["source_word"] for r in all_words]
-        distractors = _generate_distractors(correct, pool)
-        options = distractors + [correct]
-        random.shuffle(options)
+        options = _build_options(word["source_word"], pool)
         option_langs = [session.source_lang] * len(options)
-        return {
-            "question_id": question_id,
-            "word_id": word_id,
-            "prompt": word["source_word"],  # for TTS only; hidden in UI
-            "options": options,
-            "mode": mode,
-            "source_lang": session.source_lang,
-            "target_lang": session.target_lang,
-            "option_langs": option_langs,
-        }
 
-    else:  # type_it
-        return {
-            "question_id": question_id,
-            "word_id": word_id,
-            "prompt": word["source_word"],
-            "options": None,
-            "mode": mode,
-            "source_lang": session.source_lang,
-            "target_lang": session.target_lang,
-            "option_langs": None,
-        }
+    elif mode == "type_it":
+        prompt = word["source_word"]
+        prompt_lang = session.source_lang
+        options = None
+        option_langs = None
+
+    else:  # reverse_type_it
+        prompt = word["target_word"]
+        prompt_lang = session.target_lang
+        options = None
+        option_langs = None
+
+    return {
+        "question_id": question_id,
+        "word_id": word_id,
+        "prompt": prompt,
+        "prompt_lang": prompt_lang,
+        "options": options,
+        "mode": mode,
+        "source_lang": session.source_lang,
+        "target_lang": session.target_lang,
+        "option_langs": option_langs,
+        "is_retry": is_retry,
+        "mode_index": session.current_mode_index,
+        "total_modes": len(session.all_modes),
+    }
 
 
 def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> dict:
@@ -194,33 +209,71 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
     mode = session.mode
     if mode in ("multiple_choice", "type_it"):
         correct_answer = word["target_word"]
-    else:
+    elif mode == "reverse_type_it":
+        correct_answer = word["source_word"]
+    else:  # reverse_mc, listening
         correct_answer = word["source_word"]
 
-    correct = _check_answer(chosen, correct_answer, mode)
+    correct = chosen.strip().lower() == correct_answer.strip().lower()
+    almost = not correct and _is_almost(chosen, correct_answer)
+
+    # Pop from front of queue
+    if session.word_queue and session.word_queue[0] == word_id:
+        session.word_queue.pop(0)
 
     if correct:
         session.streak += 1
         xp = 10 + min(session.streak * 2, 20)
+        session.correctly_done_this_mode.add(word_id)
+        # Remove from wrong_this_pass if it was there (now correct)
+        if word_id in session.wrong_this_pass:
+            session.wrong_this_pass.remove(word_id)
     else:
         session.streak = 0
         xp = 0
+        # Add back to retry queue (at the end)
+        if word_id not in session.wrong_this_pass:
+            session.wrong_this_pass.append(word_id)
+        session.word_queue.append(word_id)
+
     session.xp += xp
-    session.current_index += 1
+
+    mode_complete = False
+    new_mode = None
+
+    # Check if we just finished this mode (queue empty and no pending wrong words)
+    if not session.word_queue:
+        # All words answered correctly for this mode
+        session.current_mode_index += 1
+        session.wrong_this_pass = []
+        session.correctly_done_this_mode = set()
+        mode_complete = True
+
+        if not session.is_complete:
+            session.word_queue = session.base_word_ids[:]
+            new_mode = session.mode
 
     conn.close()
     return {
         "correct": correct,
+        "almost": almost,
         "correct_answer": correct_answer,
         "xp_gained": xp,
         "streak": session.streak,
-        "progress_index": session.current_index,
-        "total": len(session.word_ids),
+        "progress_index": session.progress,
+        "total": session.total,
+        "mode_complete": mode_complete,
+        "new_mode": new_mode,
+        "mode_index": session.current_mode_index,
+        "total_modes": len(session.all_modes),
     }
 
 
-def _check_answer(chosen: str, correct: str, mode: str) -> bool:
-    return chosen.strip().lower() == correct.strip().lower()
+def _build_options(correct: str, pool: list[str]) -> list[str]:
+    distractors = _generate_distractors(correct, pool)
+    options = distractors + [correct]
+    random.shuffle(options)
+    return options
 
 
 def _generate_distractors(correct: str, pool: list[str], n: int = 3) -> list[str]:
@@ -229,8 +282,32 @@ def _generate_distractors(correct: str, pool: list[str], n: int = 3) -> list[str
     other = [w for w in candidates if w not in similar]
     random.shuffle(similar)
     random.shuffle(other)
-    merged = similar + other
-    return merged[:n]
+    return (similar + other)[:n]
+
+
+def _is_almost(chosen: str, correct: str) -> bool:
+    a = chosen.strip().lower()
+    b = correct.strip().lower()
+    if a == b or not a or not b:
+        return False
+    if abs(len(a) - len(b)) > 2:
+        return False
+    return _levenshtein(a, b) == 1
+
+
+def _levenshtein(a: str, b: str) -> int:
+    dp = [[0] * (len(b) + 1) for _ in range(len(a) + 1)]
+    for i in range(len(a) + 1):
+        dp[i][0] = i
+    for j in range(len(b) + 1):
+        dp[0][j] = j
+    for i in range(1, len(a) + 1):
+        for j in range(1, len(b) + 1):
+            if a[i - 1] == b[j - 1]:
+                dp[i][j] = dp[i - 1][j - 1]
+            else:
+                dp[i][j] = 1 + min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1])
+    return dp[len(a)][len(b)]
 
 
 def _now_str() -> str:

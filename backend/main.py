@@ -1,13 +1,14 @@
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from database import init_db
+from database import init_db, seed_builtin_lists
 from routers import words, upload, game, progress
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    seed_builtin_lists()
     yield
 
 
