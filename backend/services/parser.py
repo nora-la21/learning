@@ -1,6 +1,7 @@
 import csv
 import io
 import re
+from typing import Optional, Tuple
 
 
 def parse_uploaded_file(filename: str, content: bytes) -> list[tuple[str, str]]:
@@ -22,7 +23,7 @@ def _strip_prefix(line: str) -> str:
     return line.strip()
 
 
-def _split_pair(line: str) -> tuple[str, str] | None:
+def _split_pair(line: str) -> Optional[Tuple[str, str]]:
     """Try to split a line into (source, target) using common delimiters."""
     line = _strip_prefix(line)
     if not line:
