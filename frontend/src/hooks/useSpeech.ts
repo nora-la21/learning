@@ -19,24 +19,29 @@ export function useSpeech() {
     if (!window.speechSynthesis || !text?.trim()) return
     const bcp = toBCP47(lang)
 
-    const trySpeak = () => {
-      window.speechSynthesis.cancel()
-      // 50 ms gives Chrome time to process cancel before we enqueue
-      setTimeout(() => {
-        const utterance = new SpeechSynthesisUtterance(text)
-        utterance.lang = bcp
-        utterance.rate = rate
-        utterance.pitch = 1.0
-        const voices = window.speechSynthesis.getVoices()
-        utterance.voice =
-          voices.find(v => v.lang === bcp) ??
-          voices.find(v => v.lang.startsWith(bcp.split('-')[0])) ??
-          null
-        window.speechSynthesis.speak(utterance)
-      }, 50)
+    const doSpeak = () => {
+      const utterance = new SpeechSynthesisUtterance(text)
+      utterance.lang = bcp
+      utterance.rate = rate
+      utterance.pitch = 1.0
+      const voices = window.speechSynthesis.getVoices()
+      utterance.voice =
+        voices.find(v => v.lang === bcp) ??
+        voices.find(v => v.lang.startsWith(bcp.split('-')[0])) ??
+        null
+      window.speechSynthesis.speak(utterance)
     }
 
-    // If voices aren't loaded yet (first ever call), wait for them
+    const trySpeak = () => {
+      // Only cancel if already speaking — unnecessary cancel() breaks Chrome
+      if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
+        window.speechSynthesis.cancel()
+        setTimeout(doSpeak, 100)
+      } else {
+        doSpeak()
+      }
+    }
+
     if (window.speechSynthesis.getVoices().length === 0) {
       window.speechSynthesis.addEventListener('voiceschanged', trySpeak, { once: true })
     } else {
