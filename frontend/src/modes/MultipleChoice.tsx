@@ -59,7 +59,10 @@ export default function MultipleChoice({ question, onAnswer, showSourceSpeaker =
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {question.options?.map((opt, i) => {
+        {/* Render in column-first order: 1=TL, 2=BL, 3=TR, 4=BR */}
+        {[0, 2, 1, 3].map(i => {
+          const opt = question.options?.[i]
+          if (opt === undefined) return null
           const lang = question.option_langs?.[i] ?? question.target_lang
           const state = chosen
             ? (opt === chosen ? 'selected' : 'dim')

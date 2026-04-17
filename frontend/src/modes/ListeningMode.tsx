@@ -67,7 +67,9 @@ export default function ListeningMode({ question, onAnswer }: Props) {
       </div>
 
       <div className="grid grid-cols-2 gap-3">
-        {question.options?.map((opt, i) => {
+        {[0, 2, 1, 3].map(i => {
+          const opt = question.options?.[i]
+          if (opt === undefined) return null
           const lang = question.option_langs?.[i] ?? question.source_lang
           const state = chosen
             ? (opt === chosen ? (opt.toLowerCase() === question.prompt.toLowerCase() ? 'correct' : 'wrong') : 'dim')

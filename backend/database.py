@@ -80,9 +80,26 @@ def seed_builtin_lists() -> None:
                 (name,),
             )
             list_id = cursor.lastrowid
-        conn.executemany(
-            "INSERT OR IGNORE INTO words (list_id, source_word, target_word) VALUES (?, ?, ?)",
-            [(list_id, src, tgt) for src, tgt in words],
-        )
+
+        for src, tgt in words:
+            # Check if exact word already exists
+            exists = conn.execute(
+                "SELECT id FROM words WHERE list_id=? AND source_word=?", (list_id, src)
+            ).fetchone()
+            if exists:
+                continue
+            # If word has article prefix, try to update existing bare form
+            bare = src.split(' ', 1)[1] if src.startswith(('de ', 'het ')) else None
+            if bare:
+                old = conn.execute(
+                    "SELECT id FROM words WHERE list_id=? AND source_word=?", (list_id, bare)
+                ).fetchone()
+                if old:
+                    conn.execute("UPDATE words SET source_word=?, target_word=? WHERE id=?", (src, tgt, old["id"]))
+                    continue
+            conn.execute(
+                "INSERT OR IGNORE INTO words (list_id, source_word, target_word) VALUES (?, ?, ?)",
+                (list_id, src, tgt),
+            )
     conn.commit()
     conn.close()
