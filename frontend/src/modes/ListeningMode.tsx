@@ -24,6 +24,20 @@ export default function ListeningMode({ question, onAnswer }: Props) {
 
   const replay = () => speak(question.prompt, question.source_lang, 0.8)
 
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      const idx = parseInt(e.key) - 1
+      if (idx >= 0 && idx < (question.options?.length ?? 0)) {
+        const opt = question.options![idx]
+        const lang = question.option_langs?.[idx] ?? question.source_lang
+        handleOption(opt, lang)
+      }
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [question.question_id, chosen])
+
   const handleOption = (opt: string, lang: string) => {
     if (chosen) return
     speak(opt, lang)
@@ -64,13 +78,14 @@ export default function ListeningMode({ question, onAnswer }: Props) {
               onClick={() => handleOption(opt, lang)}
               disabled={!!chosen}
               className={`
-                p-4 rounded-xl text-left font-medium transition-all border-2 text-sm md:text-base
+                p-4 rounded-xl text-left font-medium transition-all border-2 text-sm md:text-base relative
                 ${state === 'idle' ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950 text-gray-900 dark:text-white' : ''}
                 ${state === 'correct' ? 'bg-green-50 dark:bg-green-950 border-green-500 text-green-800 dark:text-green-200' : ''}
                 ${state === 'wrong' ? 'bg-red-50 dark:bg-red-950 border-red-500 text-red-800 dark:text-red-200' : ''}
                 ${state === 'dim' ? 'bg-gray-50 dark:bg-gray-850 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500' : ''}
               `}
             >
+              <span className={`absolute top-1.5 right-2 text-xs font-bold opacity-30 ${state !== 'idle' ? 'opacity-10' : ''}`}>{i + 1}</span>
               {opt}
             </button>
           )

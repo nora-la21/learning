@@ -159,6 +159,11 @@ function ListCard({
     setExpanded(v => !v)
   }
 
+  const deleteWord = async (wordId: number) => {
+    await api.deleteWord(wordId)
+    setWords(ws => ws ? ws.filter(w => w.id !== wordId) : ws)
+  }
+
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
       <div className="p-5 flex items-center gap-4">
@@ -211,9 +216,16 @@ function ListCard({
               </thead>
               <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
                 {words.map(w => (
-                  <tr key={w.id}>
+                  <tr key={w.id} className="group">
                     <td className="py-1.5 pr-4 text-gray-800 dark:text-gray-200 font-medium">{w.source_word}</td>
                     <td className="py-1.5 text-gray-500 dark:text-gray-400">{w.target_word}</td>
+                    <td className="py-1.5 text-right">
+                      <button
+                        onClick={() => deleteWord(w.id)}
+                        className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition text-xs px-1"
+                        title="Remove word"
+                      >✕</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
