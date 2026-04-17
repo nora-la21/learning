@@ -21,6 +21,10 @@ export function useSpeech() {
     const langPrefix = bcp.split('-')[0]
 
     const doSpeak = () => {
+      // Cancel any stuck utterance, then resume to wake Chrome out of paused state
+      window.speechSynthesis.cancel()
+      window.speechSynthesis.resume()
+
       const voices = window.speechSynthesis.getVoices()
       const voice =
         voices.find(v => v.lang === bcp) ??
@@ -29,26 +33,16 @@ export function useSpeech() {
 
       const utterance = new SpeechSynthesisUtterance(text)
       utterance.voice = voice
-      // Use the voice's actual lang tag to avoid silent mismatch failures
       utterance.lang = voice?.lang ?? bcp
       utterance.rate = rate
       utterance.pitch = 1.0
       window.speechSynthesis.speak(utterance)
     }
 
-    const trySpeak = () => {
-      if (window.speechSynthesis.speaking || window.speechSynthesis.pending) {
-        window.speechSynthesis.cancel()
-        setTimeout(doSpeak, 100)
-      } else {
-        doSpeak()
-      }
-    }
-
     if (window.speechSynthesis.getVoices().length === 0) {
-      window.speechSynthesis.addEventListener('voiceschanged', trySpeak, { once: true })
+      window.speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true })
     } else {
-      trySpeak()
+      doSpeak()
     }
   }, [])
 
