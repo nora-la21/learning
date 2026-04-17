@@ -37,7 +37,8 @@ export default function MultipleChoice({ question, onAnswer, showSourceSpeaker =
 
   const handleOption = (opt: string, lang: string) => {
     if (chosen) return
-    speak(opt, lang)
+    // Only speak Dutch options, not English translations
+    if (lang.startsWith(question.source_lang)) speak(opt, lang)
     setChosen(opt)
     setTimeout(() => {
       onAnswer(opt, Date.now() - startTime.current)

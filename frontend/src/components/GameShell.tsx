@@ -93,10 +93,11 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
       setProgress(result.progress_index)
 
       if (result.correct) {
-        speak(result.correct_answer,
-          question.mode === 'multiple_choice' ? question.target_lang
-          : question.mode === 'reverse_type_it' ? question.source_lang
-          : question.source_lang)
+        // Always speak the Dutch (source) word — prompt if it's Dutch, else correct_answer
+        const dutchWord = question.prompt_lang === question.source_lang
+          ? question.prompt
+          : result.correct_answer
+        speak(dutchWord, question.source_lang)
       }
 
       setFeedback({
