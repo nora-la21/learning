@@ -1,14 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
 import type { GameQuestion } from '../types'
 import { useSpeech } from '../hooks/useSpeech'
+import type { AnswerFeedback } from '../components/GameShell'
 
 interface Props {
   question: GameQuestion
   onAnswer: (chosen: string, timeMs: number) => void
+  feedback: AnswerFeedback
   showSourceSpeaker?: boolean
 }
 
-export default function MultipleChoice({ question, onAnswer, showSourceSpeaker = true }: Props) {
+export default function MultipleChoice({ question, onAnswer, feedback, showSourceSpeaker = true }: Props) {
   const [chosen, setChosen] = useState<string | null>(null)
   const startTime = useRef(Date.now())
   const { speak } = useSpeech()
@@ -37,12 +39,19 @@ export default function MultipleChoice({ question, onAnswer, showSourceSpeaker =
 
   const handleOption = (opt: string, lang: string) => {
     if (chosen) return
-    // Only speak Dutch options, not English translations
     if (lang.startsWith(question.source_lang)) speak(opt, lang)
     setChosen(opt)
     setTimeout(() => {
       onAnswer(opt, Date.now() - startTime.current)
-    }, 1200)
+    }, 150)
+  }
+
+  const getState = (opt: string) => {
+    if (!chosen) return 'idle'
+    if (opt !== chosen) return 'dim'
+    if (!feedback) return 'selected'
+    if (feedback.almost) return 'almost'
+    return feedback.correct ? 'correct' : 'wrong'
   }
 
   return (
@@ -60,14 +69,11 @@ export default function MultipleChoice({ question, onAnswer, showSourceSpeaker =
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {/* Render in column-first order: 1=TL, 2=BL, 3=TR, 4=BR */}
         {[0, 2, 1, 3].map(i => {
           const opt = question.options?.[i]
           if (opt === undefined) return null
           const lang = question.option_langs?.[i] ?? question.target_lang
-          const state = chosen
-            ? (opt === chosen ? 'selected' : 'dim')
-            : 'idle'
+          const state = getState(opt)
           return (
             <button
               key={opt}
@@ -75,12 +81,15 @@ export default function MultipleChoice({ question, onAnswer, showSourceSpeaker =
               disabled={!!chosen}
               className={`
                 p-4 rounded-xl text-left font-medium transition-all border-2 text-sm md:text-base relative
-                ${state === 'idle' ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950 text-gray-900 dark:text-white' : ''}
+                ${state === 'idle'     ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950 text-gray-900 dark:text-white' : ''}
                 ${state === 'selected' ? 'bg-violet-100 dark:bg-violet-900 border-violet-400 text-violet-900 dark:text-violet-100' : ''}
-                ${state === 'dim' ? 'bg-gray-50 dark:bg-gray-850 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500' : ''}
+                ${state === 'correct'  ? 'bg-green-100 dark:bg-green-900 border-green-500 text-green-900 dark:text-green-100' : ''}
+                ${state === 'wrong'    ? 'bg-red-100 dark:bg-red-900 border-red-500 text-red-900 dark:text-red-100' : ''}
+                ${state === 'almost'   ? 'bg-amber-100 dark:bg-amber-900 border-amber-500 text-amber-900 dark:text-amber-100' : ''}
+                ${state === 'dim'      ? 'bg-gray-50 dark:bg-gray-850 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500' : ''}
               `}
             >
-              <span className={`absolute top-1.5 right-2 text-xs font-bold opacity-30 ${state !== 'idle' ? 'opacity-10' : ''}`}>{i + 1}</span>
+              <span className={`absolute top-1.5 right-2 text-xs font-bold ${state === 'idle' ? 'opacity-30' : 'opacity-10'}`}>{i + 1}</span>
               {opt}
             </button>
           )

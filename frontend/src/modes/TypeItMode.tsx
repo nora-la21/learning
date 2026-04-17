@@ -1,13 +1,15 @@
 import { useEffect, useRef, useState } from 'react'
 import type { GameQuestion } from '../types'
 import { useSpeech } from '../hooks/useSpeech'
+import type { AnswerFeedback } from '../components/GameShell'
 
 interface Props {
   question: GameQuestion
   onAnswer: (chosen: string, timeMs: number) => void
+  feedback: AnswerFeedback
 }
 
-export default function TypeItMode({ question, onAnswer }: Props) {
+export default function TypeItMode({ question, onAnswer, feedback }: Props) {
   const [input, setInput] = useState('')
   const [submitted, setSubmitted] = useState(false)
   const startTime = useRef(Date.now())
@@ -62,9 +64,12 @@ export default function TypeItMode({ question, onAnswer }: Props) {
           placeholder={isReverse ? 'Dutch word…' : 'English translation…'}
           className={`
             w-full px-5 py-4 rounded-xl text-lg border-2 focus:outline-none transition-colors
-            ${submitted ? 'opacity-60 cursor-not-allowed' : ''}
+            ${submitted && !feedback ? 'opacity-60 cursor-not-allowed' : ''}
             bg-white dark:bg-gray-800 text-gray-900 dark:text-white
-            border-gray-300 dark:border-gray-600 focus:border-violet-500
+            ${feedback?.correct  ? 'border-green-500' :
+              feedback?.almost   ? 'border-amber-500' :
+              feedback && !feedback.correct ? 'border-red-500' :
+              'border-gray-300 dark:border-gray-600 focus:border-violet-500'}
           `}
         />
         <button

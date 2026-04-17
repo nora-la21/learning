@@ -30,6 +30,8 @@ type FeedbackState = {
   correctAnswer: string
 }
 
+export type AnswerFeedback = { correct: boolean; almost: boolean } | null
+
 export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [question, setQuestion] = useState<GameQuestion | null>(null)
@@ -107,7 +109,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
         correctAnswer: result.correct_answer,
       })
 
-      const delay = result.mode_complete ? 2000 : 1400
+      const delay = result.mode_complete ? 1500 : 700
 
       feedbackTimer.current = setTimeout(async () => {
         setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
@@ -203,25 +205,8 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
         </div>
       )}
 
-      {/* Feedback banner */}
-      {feedback.show && (
-        <div className={`rounded-xl px-5 py-3 text-center font-semibold text-sm ${
-          feedback.almost
-            ? 'bg-amber-50 dark:bg-amber-950 text-amber-700 dark:text-amber-300 border border-amber-200'
-            : feedback.correct
-            ? 'bg-green-50 dark:bg-green-950 text-green-700 dark:text-green-300 border border-green-200'
-            : 'bg-red-50 dark:bg-red-950 text-red-700 dark:text-red-300 border border-red-200'
-        }`}>
-          {feedback.almost
-            ? `Almost! Correct answer: "${feedback.correctAnswer}" — will repeat`
-            : feedback.correct
-            ? 'Correct! ✓'
-            : `Incorrect — "${feedback.correctAnswer}" — will repeat`}
-        </div>
-      )}
-
       {/* Question card */}
-      {question && !feedback.show && !modeTransition && (
+      {question && !modeTransition && (
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
           {!isAllInOne && (
             <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4 text-center">
@@ -229,16 +214,16 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
             </p>
           )}
           {(question.mode === 'multiple_choice') && (
-            <MultipleChoice question={question} onAnswer={handleAnswer} />
+            <MultipleChoice question={question} onAnswer={handleAnswer} feedback={feedback.show ? feedback : null} />
           )}
           {question.mode === 'reverse_mc' && (
-            <ReverseMultipleChoice question={question} onAnswer={handleAnswer} />
+            <ReverseMultipleChoice question={question} onAnswer={handleAnswer} feedback={feedback.show ? feedback : null} />
           )}
           {question.mode === 'listening' && (
-            <ListeningMode question={question} onAnswer={handleAnswer} />
+            <ListeningMode question={question} onAnswer={handleAnswer} feedback={feedback.show ? feedback : null} />
           )}
           {(question.mode === 'type_it' || question.mode === 'reverse_type_it') && (
-            <TypeItMode question={question} onAnswer={handleAnswer} />
+            <TypeItMode question={question} onAnswer={handleAnswer} feedback={feedback.show ? feedback : null} />
           )}
         </div>
       )}

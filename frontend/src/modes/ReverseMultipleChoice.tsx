@@ -1,18 +1,19 @@
 import type { GameQuestion } from '../types'
+import type { AnswerFeedback } from '../components/GameShell'
 import MultipleChoice from './MultipleChoice'
 
 interface Props {
   question: GameQuestion
   onAnswer: (chosen: string, timeMs: number) => void
+  feedback: AnswerFeedback
 }
 
-// Reverse MC: prompt is target_word (translation), options are source_words
-// The speaker should use target_lang for prompt, source_lang for options
-export default function ReverseMultipleChoice({ question, onAnswer }: Props) {
+export default function ReverseMultipleChoice({ question, onAnswer, feedback }: Props) {
   return (
     <MultipleChoice
       question={question}
       onAnswer={onAnswer}
+      feedback={feedback}
       showSourceSpeaker={true}
     />
   )
