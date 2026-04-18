@@ -10,6 +10,28 @@ const FLAG: Record<string, string> = {
   es: '🇪🇸', pt: '🇵🇹', it: '🇮🇹',
 }
 
+const LEVEL_LABELS: Record<string, string> = {
+  A1: 'A1 — Beginner',
+  A2: 'A2 — Elementary',
+  B1: 'B1 — Intermediate',
+  B2: 'B2 — Upper Intermediate',
+}
+
+function extractLevel(name: string): string {
+  const m = name.match(/\b(A1|A2|B1|B2|C1|C2)\b/)
+  return m ? m[1] : 'Other'
+}
+
+function groupByLevel(lists: WordList[]): { level: string; lists: WordList[] }[] {
+  const map = new Map<string, WordList[]>()
+  for (const l of lists) {
+    const lvl = extractLevel(l.name)
+    if (!map.has(lvl)) map.set(lvl, [])
+    map.get(lvl)!.push(l)
+  }
+  return Array.from(map.entries()).map(([level, lists]) => ({ level, lists }))
+}
+
 type Tab = 'builtin' | 'my'
 
 export default function HomePage() {
@@ -115,6 +137,19 @@ export default function HomePage() {
               <p className="font-medium text-gray-600 dark:text-gray-300">No built-in lists found</p>
             )}
           </div>
+        ) : tab === 'builtin' ? (
+          <div className="space-y-3">
+            {groupByLevel(lists).map(({ level, lists: group }, i) => (
+              <LevelGroup
+                key={level}
+                level={level}
+                lists={group}
+                defaultOpen={i === 0}
+                onPractice={id => navigate(`/learn/${id}`)}
+                onStats={id => navigate(`/progress/${id}`)}
+              />
+            ))}
+          </div>
         ) : (
           <div className="space-y-4">
             {lists.map(list => (
@@ -124,7 +159,7 @@ export default function HomePage() {
                 flag={FLAG[list.source_lang] ?? '📖'}
                 onPractice={() => navigate(`/learn/${list.id}`)}
                 onStats={() => navigate(`/progress/${list.id}`)}
-                onDelete={list.builtin ? undefined : () => deleteList(list.id)}
+                onDelete={() => deleteList(list.id)}
               />
             ))}
           </div>
@@ -134,14 +169,62 @@ export default function HomePage() {
   )
 }
 
+function LevelGroup({
+  level, lists, defaultOpen, onPractice, onStats,
+}: {
+  level: string
+  lists: WordList[]
+  defaultOpen: boolean
+  onPractice: (id: number) => void
+  onStats: (id: number) => void
+}) {
+  const [open, setOpen] = useState(defaultOpen)
+  const totalWords = lists.reduce((s, l) => s + l.word_count, 0)
+  const label = LEVEL_LABELS[level] ?? level
+  const flag = FLAG[lists[0]?.source_lang] ?? '📖'
+
+  return (
+    <div className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
+      <button
+        onClick={() => setOpen(v => !v)}
+        className="w-full flex items-center gap-3 px-5 py-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-left"
+      >
+        <span className="text-2xl">{flag}</span>
+        <div className="flex-1 min-w-0">
+          <span className="font-semibold text-gray-900 dark:text-white">{label}</span>
+          <span className="ml-2 text-sm text-gray-400">{lists.length} topics · {totalWords} words</span>
+        </div>
+        <span className={`text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>
+          ▾
+        </span>
+      </button>
+      {open && (
+        <div className="border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 bg-gray-50 dark:bg-gray-850">
+          {lists.map(list => (
+            <ListCard
+              key={list.id}
+              list={list}
+              flag={flag}
+              compact
+              onPractice={() => onPractice(list.id)}
+              onStats={() => onStats(list.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function ListCard({
-  list, flag, onPractice, onStats, onDelete,
+  list, flag, onPractice, onStats, onDelete, compact = false,
 }: {
   list: WordList
   flag: string
   onPractice: () => void
   onStats: () => void
   onDelete?: () => void
+  compact?: boolean
 }) {
   const [expanded, setExpanded] = useState(false)
   const [words, setWords] = useState<Word[] | null>(null)
@@ -199,15 +282,22 @@ function ListCard({
   const allSelected = !!words && words.length > 0 && selected.size === words.length
   const someSelected = selected.size > 0 && !allSelected
 
+  const topic = compact
+    ? list.name.replace(/^.*?—\s*/, '')
+    : list.name
+
   return (
-    <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
-      <div className="p-5 flex items-center gap-4">
-        <div className="text-3xl">{flag}</div>
+    <div className={compact
+      ? 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors'
+      : 'bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow'
+    }>
+      <div className={`flex items-center gap-4 ${compact ? 'px-5 py-3' : 'p-5'}`}>
+        {!compact && <div className="text-3xl">{flag}</div>}
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-900 dark:text-white truncate">{list.name}</h3>
+          <h3 className="font-semibold text-gray-900 dark:text-white truncate">{topic}</h3>
           <p className="text-sm text-gray-500 dark:text-gray-400">
-            {list.word_count} words · {list.source_lang.toUpperCase()} → {list.target_lang.toUpperCase()}
-            {list.builtin ? ' · Built-in' : ''}
+            {list.word_count} words
+            {!compact && ` · ${list.source_lang.toUpperCase()} → ${list.target_lang.toUpperCase()}`}
           </p>
         </div>
         <div className="flex gap-2 shrink-0">
