@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from database import get_db
-from models import WordListResponse, WordResponse, WordUpdate
+from models import WordListResponse, WordResponse, WordUpdate, SetLearnedRequest, ResetProgressRequest
 
 router = APIRouter(prefix="/api", tags=["words"])
 
@@ -34,9 +34,13 @@ def get_words(list_id: int):
     if not row:
         conn.close()
         raise HTTPException(status_code=404, detail="Word list not found")
-    words = conn.execute(
-        "SELECT * FROM words WHERE list_id = ? ORDER BY source_word", (list_id,)
-    ).fetchall()
+    words = conn.execute("""
+        SELECT w.*, COALESCE(wp.manually_excluded, 0) as learned
+        FROM words w
+        LEFT JOIN word_progress wp ON wp.word_id = w.id
+        WHERE w.list_id = ?
+        ORDER BY w.source_word
+    """, (list_id,)).fetchall()
     conn.close()
     return [dict(w) for w in words]
 
@@ -83,3 +87,41 @@ def delete_word(word_id: int):
     conn.close()
     if result.rowcount == 0:
         raise HTTPException(status_code=404, detail="Word not found")
+
+
+@router.patch("/words/{word_id}/learned", status_code=204)
+def set_word_learned(word_id: int, body: SetLearnedRequest):
+    conn = get_db()
+    word = conn.execute("SELECT id FROM words WHERE id = ?", (word_id,)).fetchone()
+    if not word:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Word not found")
+    conn.execute("""
+        INSERT INTO word_progress (word_id, manually_excluded)
+        VALUES (?, ?)
+        ON CONFLICT(word_id) DO UPDATE SET manually_excluded = excluded.manually_excluded
+    """, (word_id, 1 if body.learned else 0))
+    conn.commit()
+    conn.close()
+
+
+@router.post("/words/reset-progress", status_code=204)
+def reset_progress(body: ResetProgressRequest):
+    if not body.word_ids:
+        return
+    conn = get_db()
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+    for wid in body.word_ids:
+        conn.execute("""
+            INSERT INTO word_progress
+                (word_id, repetitions, ease_factor, interval_days, next_review_at,
+                 correct_count, incorrect_count, mastered, manually_excluded)
+            VALUES (?, 0, 2.5, 1, ?, 0, 0, 0, 0)
+            ON CONFLICT(word_id) DO UPDATE SET
+                repetitions=0, ease_factor=2.5, interval_days=1,
+                next_review_at=excluded.next_review_at,
+                correct_count=0, incorrect_count=0, mastered=0, manually_excluded=0
+        """, (wid, now))
+    conn.commit()
+    conn.close()

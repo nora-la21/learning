@@ -56,12 +56,16 @@ def init_db() -> None:
             answered_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
     """)
-    # Migration: add builtin column to existing databases
-    try:
-        conn.execute("ALTER TABLE word_lists ADD COLUMN builtin INTEGER NOT NULL DEFAULT 0")
-        conn.commit()
-    except Exception:
-        pass  # column already exists
+    # Migrations for existing databases
+    for migration in [
+        "ALTER TABLE word_lists ADD COLUMN builtin INTEGER NOT NULL DEFAULT 0",
+        "ALTER TABLE word_progress ADD COLUMN manually_excluded INTEGER NOT NULL DEFAULT 0",
+    ]:
+        try:
+            conn.execute(migration)
+            conn.commit()
+        except Exception:
+            pass
     conn.close()
 
 

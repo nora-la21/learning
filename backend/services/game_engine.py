@@ -59,7 +59,7 @@ def create_session(list_id: int, mode: str, session_size: int) -> GameSession:
         raise ValueError("Word list not found")
 
     all_words = conn.execute(
-        "SELECT w.id, wp.repetitions, wp.next_review_at, wp.mastered "
+        "SELECT w.id, wp.repetitions, wp.next_review_at, wp.mastered, wp.manually_excluded "
         "FROM words w "
         "LEFT JOIN word_progress wp ON wp.word_id = w.id "
         "WHERE w.list_id = ?",
@@ -67,12 +67,11 @@ def create_session(list_id: int, mode: str, session_size: int) -> GameSession:
     ).fetchall()
     conn.close()
 
-    if len(all_words) < 4:
-        raise ValueError("Need at least 4 words to start a session")
-
     now_str = _now_str()
     weighted: list[tuple[int, float]] = []
     for row in all_words:
+        if row["manually_excluded"]:
+            continue
         if row["repetitions"] is None:
             w = 3.0
         elif row["mastered"]:
@@ -82,6 +81,9 @@ def create_session(list_id: int, mode: str, session_size: int) -> GameSession:
         else:
             w = 0.5
         weighted.append((row["id"], w))
+
+    if len(weighted) < 4:
+        raise ValueError("Need at least 4 words to start a session")
 
     ids = [x[0] for x in weighted]
     weights = [x[1] for x in weighted]

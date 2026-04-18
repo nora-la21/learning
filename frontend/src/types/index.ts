@@ -15,6 +15,7 @@ export interface Word {
   source_word: string
   target_word: string
   created_at: string
+  learned: boolean
 }
 
 export interface WordPair {

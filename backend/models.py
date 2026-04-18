@@ -30,11 +30,20 @@ class WordResponse(BaseModel):
     source_word: str
     target_word: str
     created_at: str
+    learned: bool = False
 
 
 class WordUpdate(BaseModel):
     source_word: Optional[str] = None
     target_word: Optional[str] = None
+
+
+class SetLearnedRequest(BaseModel):
+    learned: bool
+
+
+class ResetProgressRequest(BaseModel):
+    word_ids: list[int]
 
 
 class UploadPreview(BaseModel):

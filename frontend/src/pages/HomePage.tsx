@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import type { Word, WordList } from '../types'
 import UploadZone from '../components/UploadZone'
+import { useSpeech } from '../hooks/useSpeech'
 
 const FLAG: Record<string, string> = {
   nl: '🇳🇱', en: '🇬🇧', fr: '🇫🇷', de: '🇩🇪',
@@ -145,6 +146,8 @@ function ListCard({
   const [expanded, setExpanded] = useState(false)
   const [words, setWords] = useState<Word[] | null>(null)
   const [loadingWords, setLoadingWords] = useState(false)
+  const [selected, setSelected] = useState<Set<number>>(new Set())
+  const { speak } = useSpeech()
 
   const toggleBrowse = async () => {
     if (!expanded && words === null) {
@@ -157,12 +160,44 @@ function ListCard({
       }
     }
     setExpanded(v => !v)
+    setSelected(new Set())
   }
 
   const deleteWord = async (wordId: number) => {
     await api.deleteWord(wordId)
     setWords(ws => ws ? ws.filter(w => w.id !== wordId) : ws)
+    setSelected(s => { const n = new Set(s); n.delete(wordId); return n })
   }
+
+  const toggleLearned = async (wordId: number, current: boolean) => {
+    await api.setWordLearned(wordId, !current)
+    setWords(ws => ws ? ws.map(w => w.id === wordId ? { ...w, learned: !current } : w) : ws)
+  }
+
+  const toggleSelect = (wordId: number) => {
+    setSelected(s => {
+      const n = new Set(s)
+      n.has(wordId) ? n.delete(wordId) : n.add(wordId)
+      return n
+    })
+  }
+
+  const toggleSelectAll = () => {
+    if (!words) return
+    setSelected(selected.size === words.length ? new Set() : new Set(words.map(w => w.id)))
+  }
+
+  const resetSelected = async () => {
+    if (selected.size === 0) return
+    await api.resetProgress(Array.from(selected))
+    // Refresh word learned status
+    const fresh = await api.getWords(list.id)
+    setWords(fresh)
+    setSelected(new Set())
+  }
+
+  const allSelected = !!words && words.length > 0 && selected.size === words.length
+  const someSelected = selected.size > 0 && !allSelected
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow">
@@ -196,40 +231,89 @@ function ListCard({
             <button
               onClick={onDelete}
               className="px-2 py-1.5 text-sm rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition"
-              title="Delete"
+              title="Delete list"
             >🗑</button>
           )}
         </div>
       </div>
 
       {expanded && (
-        <div className="border-t border-gray-100 dark:border-gray-700 px-5 py-3 max-h-72 overflow-y-auto">
+        <div className="border-t border-gray-100 dark:border-gray-700">
           {loadingWords ? (
             <p className="text-sm text-gray-400 text-center py-4">Loading…</p>
           ) : words && words.length > 0 ? (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-gray-400 uppercase tracking-wide">
-                  <th className="text-left pb-2 font-medium">{list.source_lang.toUpperCase()}</th>
-                  <th className="text-left pb-2 font-medium">{list.target_lang.toUpperCase()}</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
-                {words.map(w => (
-                  <tr key={w.id} className="group">
-                    <td className="py-1.5 pr-4 text-gray-800 dark:text-gray-200 font-medium">{w.source_word}</td>
-                    <td className="py-1.5 text-gray-500 dark:text-gray-400">{w.target_word}</td>
-                    <td className="py-1.5 text-right">
-                      <button
-                        onClick={() => deleteWord(w.id)}
-                        className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition text-xs px-1"
-                        title="Remove word"
-                      >✕</button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <>
+              {/* Toolbar */}
+              <div className="flex items-center justify-between px-5 py-2 bg-gray-50 dark:bg-gray-750 border-b border-gray-100 dark:border-gray-700">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-500 dark:text-gray-400">
+                  <input
+                    type="checkbox"
+                    checked={allSelected}
+                    ref={el => { if (el) el.indeterminate = someSelected }}
+                    onChange={toggleSelectAll}
+                    className="w-4 h-4 accent-violet-600 cursor-pointer"
+                  />
+                  {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
+                </label>
+                {selected.size > 0 && (
+                  <button
+                    onClick={resetSelected}
+                    className="text-xs px-3 py-1 rounded-lg bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800 transition font-medium"
+                  >
+                    Reset progress ({selected.size})
+                  </button>
+                )}
+              </div>
+              {/* Word table */}
+              <div className="max-h-80 overflow-y-auto px-5 py-2">
+                <table className="w-full text-sm">
+                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                    {words.map(w => (
+                      <tr
+                        key={w.id}
+                        className={`group ${w.learned ? 'opacity-50' : ''}`}
+                      >
+                        <td className="py-1.5 pr-2 w-6">
+                          <input
+                            type="checkbox"
+                            checked={selected.has(w.id)}
+                            onChange={() => toggleSelect(w.id)}
+                            className="w-4 h-4 accent-violet-600 cursor-pointer"
+                          />
+                        </td>
+                        <td className="py-1.5 pr-3 text-gray-800 dark:text-gray-200 font-medium">
+                          {w.source_word}
+                        </td>
+                        <td className="py-1.5 pr-2 text-gray-500 dark:text-gray-400 flex-1">
+                          {w.target_word}
+                        </td>
+                        <td className="py-1.5 text-right whitespace-nowrap">
+                          <button
+                            onClick={() => speak(w.source_word, list.source_lang)}
+                            className="text-gray-400 hover:text-violet-500 transition px-1 text-base"
+                            title="Listen"
+                          >🔊</button>
+                          <button
+                            onClick={() => toggleLearned(w.id, w.learned)}
+                            className={`transition px-1 text-base ${
+                              w.learned
+                                ? 'text-green-500 hover:text-gray-400'
+                                : 'text-gray-300 dark:text-gray-600 hover:text-green-500'
+                            }`}
+                            title={w.learned ? 'Mark as not learned' : 'Mark as learned (skip in game)'}
+                          >✓</button>
+                          <button
+                            onClick={() => deleteWord(w.id)}
+                            className="opacity-0 group-hover:opacity-100 text-red-400 hover:text-red-600 transition px-1 text-xs"
+                            title="Remove word"
+                          >✕</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
           ) : (
             <p className="text-sm text-gray-400 text-center py-4">No words yet</p>
           )}

@@ -30,6 +30,18 @@ export const api = {
       body: JSON.stringify(data),
     }),
   deleteWord: (wordId: number) => req<void>(`/words/${wordId}`, { method: 'DELETE' }),
+  setWordLearned: (wordId: number, learned: boolean) =>
+    req<void>(`/words/${wordId}/learned`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ learned }),
+    }),
+  resetProgress: (wordIds: number[]) =>
+    req<void>('/words/reset-progress', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ word_ids: wordIds }),
+    }),
 
   uploadPreview: (file: File): Promise<UploadPreview> => {
     const form = new FormData()
