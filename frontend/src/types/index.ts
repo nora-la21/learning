@@ -104,5 +104,4 @@ export type GameMode =
   | 'reverse_mc'
   | 'listening'
   | 'type_it'
-  | 'reverse_type_it'
   | 'all_in_one'

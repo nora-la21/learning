@@ -4,12 +4,11 @@ import GameShell from '../components/GameShell'
 import type { GameMode } from '../types'
 
 const MODES: { id: GameMode; label: string; desc: string; icon: string; highlight?: boolean }[] = [
-  { id: 'all_in_one', label: 'All in One', desc: 'All 5 modes in sequence — the full training cycle', icon: '⚡', highlight: true },
+  { id: 'all_in_one', label: 'All in One', desc: 'All 4 modes in sequence — the full training cycle', icon: '⚡', highlight: true },
   { id: 'multiple_choice', label: 'Word → Translation', desc: 'See the Dutch word, pick the correct English translation', icon: '🃏' },
   { id: 'reverse_mc', label: 'Translation → Word', desc: 'See the English translation, pick the correct Dutch word', icon: '🔄' },
-  { id: 'listening', label: 'Listening', desc: 'Hear the Dutch word pronounced, pick what you heard', icon: '👂' },
-  { id: 'type_it', label: 'Type It (Dutch → English)', desc: 'See the Dutch word, type the English translation', icon: '✍️' },
-  { id: 'reverse_type_it', label: 'Type It (English → Dutch)', desc: 'See the English word, type the Dutch translation', icon: '🔤' },
+  { id: 'listening', label: 'Listening', desc: 'Hear the Dutch word, pick the correct English translation', icon: '👂' },
+  { id: 'type_it', label: 'Type It', desc: 'See the Dutch word, type the English translation', icon: '✍️' },
 ]
 
 const SESSION_SIZES = [5, 10, 20, 50]

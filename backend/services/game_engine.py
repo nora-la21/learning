@@ -4,9 +4,9 @@ from dataclasses import dataclass, field
 from typing import Optional
 from database import get_db
 
-INDIVIDUAL_MODES = {"multiple_choice", "reverse_mc", "listening", "type_it", "reverse_type_it"}
+INDIVIDUAL_MODES = {"multiple_choice", "reverse_mc", "listening", "type_it"}
 
-ALL_IN_ONE_SEQUENCE = ["multiple_choice", "reverse_mc", "listening", "type_it", "reverse_type_it"]
+ALL_IN_ONE_SEQUENCE = ["multiple_choice", "reverse_mc", "listening", "type_it"]
 
 
 @dataclass
@@ -169,15 +169,9 @@ def get_next_question(session_id: str) -> Optional[dict]:
         options = _build_options(word["target_word"], pool)
         option_langs = [session.target_lang] * len(options)
 
-    elif mode == "type_it":
+    else:  # type_it
         prompt = word["source_word"]
         prompt_lang = session.source_lang
-        options = None
-        option_langs = None
-
-    else:  # reverse_type_it
-        prompt = word["target_word"]
-        prompt_lang = session.target_lang
         options = None
         option_langs = None
 
@@ -211,8 +205,6 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
     mode = session.mode
     if mode in ("multiple_choice", "type_it", "listening"):
         correct_answer = word["target_word"]
-    elif mode == "reverse_type_it":
-        correct_answer = word["source_word"]
     else:  # reverse_mc
         correct_answer = word["source_word"]
 
