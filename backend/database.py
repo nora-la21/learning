@@ -5,9 +5,10 @@ DB_PATH = Path(__file__).parent.parent / "data" / "learning.db"
 
 
 def get_db() -> sqlite3.Connection:
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=10)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA foreign_keys = ON")
+    conn.execute("PRAGMA journal_mode=WAL")
     return conn
 
 
@@ -66,6 +67,27 @@ def init_db() -> None:
             conn.commit()
         except Exception:
             pass
+
+    # Remove CHECK constraint on answer_events.mode if present (blocks new modes)
+    table_row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type='table' AND name='answer_events'"
+    ).fetchone()
+    if table_row and table_row[0] and 'CHECK' in table_row[0].upper():
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS answer_events_new (
+                id          INTEGER PRIMARY KEY AUTOINCREMENT,
+                word_id     INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+                mode        TEXT NOT NULL,
+                correct     INTEGER NOT NULL,
+                time_ms     INTEGER,
+                answered_at TEXT NOT NULL DEFAULT (datetime('now'))
+            );
+            INSERT OR IGNORE INTO answer_events_new SELECT * FROM answer_events;
+            DROP TABLE answer_events;
+            ALTER TABLE answer_events_new RENAME TO answer_events;
+        """)
+        conn.commit()
+
     conn.close()
 
 
