@@ -234,9 +234,7 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
         # Add back to retry queue (at the end)
         if word_id not in session.wrong_this_pass:
             session.wrong_this_pass.append(word_id)
-        # Re-insert after 2 words so it comes back soon rather than at the very end
-        insert_pos = min(2, len(session.word_queue))
-        session.word_queue.insert(insert_pos, word_id)
+        session.word_queue.append(word_id)
 
     session.xp += xp
 
