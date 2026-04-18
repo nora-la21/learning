@@ -54,10 +54,13 @@ export default function ListeningMode({ question, onAnswer, feedback }: Props) {
 
   const getState = (opt: string) => {
     if (!chosen) return 'idle'
-    if (opt !== chosen) return 'dim'
-    if (!feedback) return 'selected'
-    if (feedback.almost) return 'almost'
-    return feedback.correct ? 'correct' : 'wrong'
+    if (!feedback) return opt === chosen ? 'selected' : 'dim'
+    if (opt === chosen) {
+      if (feedback.almost) return 'almost'
+      return feedback.correct ? 'correct' : 'wrong'
+    }
+    if (!feedback.correct && opt === feedback.correctAnswer) return 'correct'
+    return 'dim'
   }
 
   return (

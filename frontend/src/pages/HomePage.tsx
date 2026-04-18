@@ -199,7 +199,7 @@ function LevelGroup({
         </span>
       </button>
       {open && (
-        <div className="border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 bg-gray-50 dark:bg-gray-850">
+        <div className="border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 bg-gray-50 dark:bg-gray-900">
           {lists.map(list => (
             <ListCard
               key={list.id}
@@ -334,7 +334,7 @@ function ListCard({
           ) : words && words.length > 0 ? (
             <>
               {/* Toolbar */}
-              <div className="flex items-center justify-between px-5 py-2 bg-gray-50 dark:bg-gray-750 border-b border-gray-100 dark:border-gray-700">
+              <div className="flex items-center justify-between px-5 py-2 bg-gray-50 dark:bg-gray-700 border-b border-gray-100 dark:border-gray-700">
                 <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-500 dark:text-gray-400">
                   <input
                     type="checkbox"
@@ -361,7 +361,7 @@ function ListCard({
                     {words.map(w => (
                       <tr
                         key={w.id}
-                        className={`group ${w.learned ? 'opacity-50' : ''}`}
+                        className={`group hover:bg-gray-50 dark:hover:bg-gray-700 ${w.learned ? 'opacity-50' : ''}`}
                       >
                         <td className="py-1.5 pr-2 w-6">
                           <input

@@ -4,9 +4,9 @@ from dataclasses import dataclass, field
 from typing import Optional
 from database import get_db
 
-INDIVIDUAL_MODES = {"multiple_choice", "reverse_mc", "listening", "type_it"}
+INDIVIDUAL_MODES = {"multiple_choice", "reverse_mc", "listening", "type_it", "reverse_type_it"}
 
-ALL_IN_ONE_SEQUENCE = ["multiple_choice", "reverse_mc", "listening", "type_it"]
+ALL_IN_ONE_SEQUENCE = ["multiple_choice", "reverse_mc", "listening", "type_it", "reverse_type_it"]
 
 
 @dataclass
@@ -169,9 +169,15 @@ def get_next_question(session_id: str) -> Optional[dict]:
         options = _build_options(word["target_word"], pool)
         option_langs = [session.target_lang] * len(options)
 
-    else:  # type_it
+    elif mode == "type_it":
         prompt = word["source_word"]
         prompt_lang = session.source_lang
+        options = None
+        option_langs = None
+
+    else:  # reverse_type_it
+        prompt = word["target_word"]
+        prompt_lang = session.target_lang
         options = None
         option_langs = None
 
@@ -205,7 +211,7 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
     mode = session.mode
     if mode in ("multiple_choice", "type_it", "listening"):
         correct_answer = word["target_word"]
-    else:  # reverse_mc
+    else:  # reverse_mc, reverse_type_it
         correct_answer = word["source_word"]
 
     correct = chosen.strip().lower() == correct_answer.strip().lower()
@@ -228,7 +234,9 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
         # Add back to retry queue (at the end)
         if word_id not in session.wrong_this_pass:
             session.wrong_this_pass.append(word_id)
-        session.word_queue.append(word_id)
+        # Re-insert after 2 words so it comes back soon rather than at the very end
+        insert_pos = min(2, len(session.word_queue))
+        session.word_queue.insert(insert_pos, word_id)
 
     session.xp += xp
 

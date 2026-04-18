@@ -15,6 +15,8 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
   const startTime = useRef(Date.now())
   const inputRef = useRef<HTMLInputElement>(null)
   const { speak } = useSpeech()
+  const isReverse = question.mode === 'reverse_type_it'
+
   useEffect(() => {
     setInput('')
     setSubmitted(false)
@@ -32,7 +34,9 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">Type in English</p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">
+          {isReverse ? 'Type in Dutch' : 'Type in English'}
+        </p>
         <div className="flex items-center justify-center gap-3">
           <span className="text-4xl font-bold text-gray-900 dark:text-white">{question.prompt}</span>
           <button
@@ -41,7 +45,9 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
             title="Hear pronunciation"
           >🔊</button>
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Type the English translation</p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+          {isReverse ? 'Type the Dutch word' : 'Type the English translation'}
+        </p>
       </div>
 
       <div className="space-y-3">
@@ -52,7 +58,7 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && submit()}
           disabled={submitted}
-          placeholder="English translation…"
+          placeholder={isReverse ? 'Dutch word…' : 'English translation…'}
           className={`
             w-full px-5 py-4 rounded-xl text-lg border-2 focus:outline-none transition-colors
             ${submitted && !feedback ? 'opacity-60 cursor-not-allowed' : ''}
