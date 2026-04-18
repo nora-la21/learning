@@ -165,9 +165,9 @@ def get_next_question(session_id: str) -> Optional[dict]:
     elif mode == "listening":
         prompt = word["source_word"]
         prompt_lang = session.source_lang
-        pool = [r["source_word"] for r in all_words]
-        options = _build_options(word["source_word"], pool)
-        option_langs = [session.source_lang] * len(options)
+        pool = [r["target_word"] for r in all_words]
+        options = _build_options(word["target_word"], pool)
+        option_langs = [session.target_lang] * len(options)
 
     elif mode == "type_it":
         prompt = word["source_word"]
@@ -209,11 +209,11 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
         raise ValueError("Word not found")
 
     mode = session.mode
-    if mode in ("multiple_choice", "type_it"):
+    if mode in ("multiple_choice", "type_it", "listening"):
         correct_answer = word["target_word"]
     elif mode == "reverse_type_it":
         correct_answer = word["source_word"]
-    else:  # reverse_mc, listening
+    else:  # reverse_mc
         correct_answer = word["source_word"]
 
     correct = chosen.strip().lower() == correct_answer.strip().lower()

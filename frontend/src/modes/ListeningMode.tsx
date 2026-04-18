@@ -63,7 +63,7 @@ export default function ListeningMode({ question, onAnswer, feedback }: Props) {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-4">
-        <p className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">What did you hear?</p>
+        <p className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">What does it mean?</p>
         <button
           onClick={replay}
           className="w-24 h-24 rounded-full bg-violet-600 text-white text-4xl hover:bg-violet-700 active:scale-95 transition-all shadow-lg mx-auto flex items-center justify-center"
