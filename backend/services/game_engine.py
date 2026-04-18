@@ -4,9 +4,9 @@ from dataclasses import dataclass, field
 from typing import Optional
 from database import get_db
 
-INDIVIDUAL_MODES = {"multiple_choice", "reverse_mc", "listening", "type_it", "reverse_type_it"}
+INDIVIDUAL_MODES = {"multiple_choice", "reverse_mc", "listening", "reverse_type_it"}
 
-ALL_IN_ONE_SEQUENCE = ["multiple_choice", "reverse_mc", "listening", "type_it", "reverse_type_it"]
+ALL_IN_ONE_SEQUENCE = ["multiple_choice", "reverse_mc", "listening", "reverse_type_it"]
 
 
 @dataclass

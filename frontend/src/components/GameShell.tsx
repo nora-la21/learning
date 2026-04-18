@@ -12,8 +12,7 @@ const MODE_LABELS: Record<string, string> = {
   multiple_choice: '🃏 Word → Translation',
   reverse_mc: '🔄 Translation → Word',
   listening: '👂 Listening',
-  type_it: '✍️ Type It (EN)',
-  reverse_type_it: '✍️ Type It (NL)',
+  reverse_type_it: '✍️ Type It',
 }
 
 interface Props {
@@ -239,7 +238,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
           {question.mode === 'listening' && (
             <ListeningMode question={question} onAnswer={handleAnswer} feedback={feedback.show ? feedback : null} />
           )}
-          {(question.mode === 'type_it' || question.mode === 'reverse_type_it') && (
+          {question.mode === 'reverse_type_it' && (
             <TypeItMode question={question} onAnswer={handleAnswer} feedback={feedback.show ? feedback : null} />
           )}
           {waitingForNext && (

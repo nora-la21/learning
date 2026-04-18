@@ -103,6 +103,5 @@ export type GameMode =
   | 'multiple_choice'
   | 'reverse_mc'
   | 'listening'
-  | 'type_it'
   | 'reverse_type_it'
   | 'all_in_one'
