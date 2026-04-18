@@ -1,16 +1,12 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
-  <!-- Violet rounded background matching app theme -->
-  <rect width="32" height="32" rx="7" fill="#7c3aed"/>
-  <!-- Dutch flag clipped inside a speech bubble shape -->
   <defs>
     <clipPath id="b">
-      <path d="M5 6 Q5 4 7 4 H25 Q27 4 27 6 V18 Q27 20 25 20 H15 L10 27 L10 20 H7 Q5 20 5 18 Z"/>
+      <path d="M2 5 Q2 2 5 2 H27 Q30 2 30 5 V20 Q30 23 27 23 H18 L13 30 L13 23 H5 Q2 23 2 20 Z"/>
     </clipPath>
   </defs>
-  <rect x="4" y="4"  width="24" height="5.33" fill="#AE1C28" clip-path="url(#b)"/>
-  <rect x="4" y="9.33" width="24" height="5.33" fill="#ffffff" clip-path="url(#b)"/>
-  <rect x="4" y="14.67" width="24" height="13" fill="#21468B" clip-path="url(#b)"/>
-  <!-- Subtle bubble border -->
-  <path d="M5 6 Q5 4 7 4 H25 Q27 4 27 6 V18 Q27 20 25 20 H15 L10 27 L10 20 H7 Q5 20 5 18 Z"
-        fill="none" stroke="rgba(255,255,255,0.25)" stroke-width="0.75"/>
+  <rect x="2" y="2"  width="28" height="7" fill="#AE1C28" clip-path="url(#b)"/>
+  <rect x="2" y="9"  width="28" height="7" fill="#ffffff" clip-path="url(#b)"/>
+  <rect x="2" y="16" width="28" height="16" fill="#21468B" clip-path="url(#b)"/>
+  <path d="M2 5 Q2 2 5 2 H27 Q30 2 30 5 V20 Q30 23 27 23 H18 L13 30 L13 23 H5 Q2 23 2 20 Z"
+        fill="none" stroke="#cccccc" stroke-width="1"/>
 </svg>
