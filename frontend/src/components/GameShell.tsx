@@ -45,6 +45,8 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [answering, setAnswering] = useState(false)
+  const [waitingForNext, setWaitingForNext] = useState(false)
+  const pendingAdvance = useRef<(() => void) | null>(null)
   const navigate = useNavigate()
   const { speak } = useSpeech()
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
@@ -53,6 +55,18 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
     startSession()
     return () => { if (feedbackTimer.current) clearTimeout(feedbackTimer.current) }
   }, [])
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!waitingForNext) return
+      if (e.key !== 'Enter' && e.key !== ' ') return
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      e.preventDefault()
+      pendingAdvance.current?.()
+    }
+    window.addEventListener('keydown', handler)
+    return () => window.removeEventListener('keydown', handler)
+  }, [waitingForNext])
 
   const startSession = async () => {
     setLoading(true)
@@ -109,9 +123,9 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
         correctAnswer: result.correct_answer,
       })
 
-      const delay = result.mode_complete ? 1500 : 700
-
-      feedbackTimer.current = setTimeout(async () => {
+      const advance = async () => {
+        setWaitingForNext(false)
+        pendingAdvance.current = null
         setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
 
         if (result.progress_index >= result.total) {
@@ -131,7 +145,10 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
           await loadNext(sessionId)
           setAnswering(false)
         }
-      }, delay)
+      }
+
+      pendingAdvance.current = advance
+      setWaitingForNext(true)
     } catch (e: any) {
       setError(e.message)
       setAnswering(false)
@@ -207,7 +224,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
 
       {/* Question card */}
       {question && !modeTransition && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm relative">
           {!isAllInOne && (
             <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4 text-center">
               {currentModeLabel}
@@ -224,6 +241,14 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
           )}
           {(question.mode === 'type_it' || question.mode === 'reverse_type_it') && (
             <TypeItMode question={question} onAnswer={handleAnswer} feedback={feedback.show ? feedback : null} />
+          )}
+          {waitingForNext && (
+            <button
+              onClick={() => pendingAdvance.current?.()}
+              className="mt-4 w-full py-2.5 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+            >
+              Continue → <span className="opacity-40 text-xs ml-1">Enter</span>
+            </button>
           )}
         </div>
       )}

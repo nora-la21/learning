@@ -24,7 +24,7 @@ export function useSpeech() {
       window.speechSynthesis.cancel()
       window.speechSynthesis.resume()
 
-      // Give the engine a moment to fully stop before starting the next word
+      // Brief pause so the engine fully stops before the next utterance
       setTimeout(() => {
         const voices = window.speechSynthesis.getVoices()
         const voice =
@@ -38,7 +38,7 @@ export function useSpeech() {
         utterance.rate = rate
         utterance.pitch = 1.0
         window.speechSynthesis.speak(utterance)
-      }, 1000)
+      }, 80)
     }
 
     if (window.speechSynthesis.getVoices().length === 0) {
