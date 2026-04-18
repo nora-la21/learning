@@ -69,7 +69,7 @@ export default function MultipleChoice({ question, onAnswer, feedback, showSourc
         </div>
       </div>
       <div className="grid grid-cols-2 gap-3">
-        {[0, 2, 1, 3].map(i => {
+        {[0, 1, 2, 3].map(i => {
           const opt = question.options?.[i]
           if (opt === undefined) return null
           const lang = question.option_langs?.[i] ?? question.target_lang
