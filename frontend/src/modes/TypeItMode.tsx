@@ -15,13 +15,10 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
   const startTime = useRef(Date.now())
   const inputRef = useRef<HTMLInputElement>(null)
   const { speak } = useSpeech()
-  const isReverse = question.mode === 'reverse_type_it'
-
   useEffect(() => {
     setInput('')
     setSubmitted(false)
     startTime.current = Date.now()
-    // Speak the prompt in the correct language
     setTimeout(() => speak(question.prompt, question.prompt_lang, 0.85), 200)
     setTimeout(() => inputRef.current?.focus(), 100)
   }, [question.question_id])
@@ -35,9 +32,7 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">
-          {isReverse ? 'Type in Dutch' : 'Type in English'}
-        </p>
+        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">Type in English</p>
         <div className="flex items-center justify-center gap-3">
           <span className="text-4xl font-bold text-gray-900 dark:text-white">{question.prompt}</span>
           <button
@@ -46,11 +41,7 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
             title="Hear pronunciation"
           >🔊</button>
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-          {isReverse
-            ? `Type the Dutch word`
-            : `Type the English translation`}
-        </p>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">Type the English translation</p>
       </div>
 
       <div className="space-y-3">
@@ -61,7 +52,7 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
           onChange={e => setInput(e.target.value)}
           onKeyDown={e => e.key === 'Enter' && submit()}
           disabled={submitted}
-          placeholder={isReverse ? 'Dutch word…' : 'English translation…'}
+          placeholder="English translation…"
           className={`
             w-full px-5 py-4 rounded-xl text-lg border-2 focus:outline-none transition-colors
             ${submitted && !feedback ? 'opacity-60 cursor-not-allowed' : ''}
@@ -79,6 +70,12 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
         >
           {submitted ? 'Checking…' : 'Check ↵'}
         </button>
+        {feedback && !feedback.correct && (
+          <div className="px-4 py-2.5 rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-center">
+            <span className="text-xs text-red-400 uppercase tracking-wide font-semibold">Correct answer</span>
+            <p className="text-red-700 dark:text-red-300 font-semibold mt-0.5">{feedback.correctAnswer}</p>
+          </div>
+        )}
       </div>
     </div>
   )

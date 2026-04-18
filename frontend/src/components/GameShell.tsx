@@ -29,7 +29,7 @@ type FeedbackState = {
   correctAnswer: string
 }
 
-export type AnswerFeedback = { correct: boolean; almost: boolean } | null
+export type AnswerFeedback = { correct: boolean; almost: boolean; correctAnswer: string } | null
 
 export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Props) {
   const [sessionId, setSessionId] = useState<string | null>(null)
