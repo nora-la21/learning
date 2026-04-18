@@ -66,11 +66,18 @@ def init_db() -> None:
 
 
 def seed_builtin_lists() -> None:
-    from data.builtin_words import A1_DUTCH, A2_DUTCH
+    from data.builtin_words import BUILTIN_LISTS
 
     conn = get_db()
-    for level, words in [("A1 — Basic Vocabulary", A1_DUTCH), ("A2 — Elementary Vocabulary", A2_DUTCH)]:
-        name = f"🇳🇱 Dutch {level}"
+
+    # Remove old monolithic A1/A2 lists replaced by categorized ones
+    for old_name in ("🇳🇱 Dutch A1 — Basic Vocabulary", "🇳🇱 Dutch A2 — Elementary Vocabulary"):
+        conn.execute("DELETE FROM word_lists WHERE name = ? AND builtin = 1", (old_name,))
+
+    for item in BUILTIN_LISTS:
+        name: str = item["name"]
+        words: list = item["words"]
+
         row = conn.execute("SELECT id FROM word_lists WHERE name = ? AND builtin = 1", (name,)).fetchone()
         if row:
             list_id = row["id"]
@@ -82,7 +89,6 @@ def seed_builtin_lists() -> None:
             list_id = cursor.lastrowid
 
         for src, tgt in words:
-            # Check if exact word already exists
             exists = conn.execute(
                 "SELECT id FROM words WHERE list_id=? AND source_word=?", (list_id, src)
             ).fetchone()
@@ -101,5 +107,6 @@ def seed_builtin_lists() -> None:
                 "INSERT OR IGNORE INTO words (list_id, source_word, target_word) VALUES (?, ?, ?)",
                 (list_id, src, tgt),
             )
+
     conn.commit()
     conn.close()
