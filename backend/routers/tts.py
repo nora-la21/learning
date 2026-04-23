@@ -14,7 +14,7 @@ os.makedirs(CACHE_DIR, exist_ok=True)
 # espeak-ng voice name per language prefix
 DEFAULT_VOICES: dict[str, str] = {
     "nl": "nl",
-    "en": "mb-en1",
+    "en": "en-us",
     "fr": "fr",
     "de": "de",
     "es": "es",
@@ -23,9 +23,10 @@ DEFAULT_VOICES: dict[str, str] = {
 }
 
 # Valid espeak-ng voice names we expose to clients
+# +f3 / +m3 are built-in formant variants (work without mbrola)
 KNOWN_VOICES: set[str] = {
-    "nl", "mb-nl2", "mb-nl3",
-    "mb-en1", "en-us", "en-gb",
+    "nl", "nl+m3", "nl+f3",
+    "en-us", "en-gb",
     "fr", "de", "es", "pt", "it",
 }
 
