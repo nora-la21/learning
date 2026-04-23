@@ -55,7 +55,7 @@ async def tts(
     last_error: Exception | None = None
     for attempt in range(3):
         if attempt > 0:
-            await asyncio.sleep(attempt)  # 1s, then 2s between retries
+            await asyncio.sleep(0.3 * attempt)  # 0.3s, then 0.6s between retries
         tmp_path = cache_path + f".tmp{attempt}"
         try:
             communicate = edge_tts.Communicate(text, voice, rate="-10%")

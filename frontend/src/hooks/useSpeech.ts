@@ -38,11 +38,14 @@ function speakWithWebSpeech(text: string, lang: string, rate: number) {
   const bcp = toBCP47(lang)
   const langPrefix = bcp.split('-')[0]
 
-  window.speechSynthesis.cancel()
   if (pendingVoicesHandler !== null) {
     window.speechSynthesis.removeEventListener('voiceschanged', pendingVoicesHandler)
     pendingVoicesHandler = null
   }
+
+  // Check before cancel — after cancel() speaking becomes false immediately
+  const wasSpeaking = window.speechSynthesis.speaking
+  window.speechSynthesis.cancel()
 
   const doSpeak = () => {
     pendingVoicesHandler = null
@@ -68,6 +71,9 @@ function speakWithWebSpeech(text: string, lang: string, rate: number) {
   if (window.speechSynthesis.getVoices().length === 0) {
     pendingVoicesHandler = doSpeak
     window.speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true })
+  } else if (wasSpeaking) {
+    // Give Safari time to fully cancel before speaking again — prevents first-syllable repeat
+    setTimeout(doSpeak, 50)
   } else {
     doSpeak()
   }
