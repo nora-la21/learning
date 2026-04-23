@@ -197,9 +197,18 @@ function MiniDonut({ mastered, seen, total }: { mastered: number; seen: number; 
   )
 }
 
-// Known Dutch voice names → gender icon. Matched case-insensitively on substrings.
-const FEMALE_PATTERNS = ['elen', 'ellen', 'hanna', 'fenna', 'lotte', 'anna', 'femke', 'google']
-const MALE_PATTERNS   = ['xander', 'frank', 'ruben', 'david', 'thomas']
+// Voice name → gender icon. Check 'female' before 'male' since 'female' contains 'male'.
+const FEMALE_PATTERNS = [
+  'female', 'elen', 'ellen', 'hanna', 'fenna', 'lotte', 'anna', 'femke',
+  'zira', 'hazel', 'susan', 'kate', 'emma', 'samantha', 'karen', 'victoria',
+  'moira', 'fiona', 'claire', 'emily', 'linda', 'helena', 'heather',
+  'aria', 'jenny', 'michelle', 'leah', 'wendy', 'google',
+]
+const MALE_PATTERNS = [
+  'male', 'xander', 'frank', 'ruben', 'thomas',
+  'david', 'daniel', 'george', 'mark', 'oliver', 'arthur', 'liam',
+  'james', 'ryan', 'lee', 'william', 'charles', 'fred', 'guy', 'richard',
+]
 
 function voiceGenderIcon(name: string): string {
   const lower = name.toLowerCase()
@@ -209,43 +218,69 @@ function voiceGenderIcon(name: string): string {
 }
 
 function voiceLabel(name: string): string {
-  // Strip long OS prefixes like "Microsoft Frank Online (Natural) - Dutch (Netherlands)"
-  // Keep the first meaningful word(s) before " Online", " Desktop", or " -"
   return name.replace(/\s+(Online|Desktop|Natural).*$/i, '').replace(/\s+-\s+.*$/, '').trim()
 }
 
 function VoicePicker() {
-  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
-  const [selected, setSelected] = useState<string>(() =>
-    localStorage.getItem('preferred_voice_nl') ?? ''
-  )
+  const [nlVoices, setNlVoices] = useState<SpeechSynthesisVoice[]>([])
+  const [enVoices, setEnVoices] = useState<SpeechSynthesisVoice[]>([])
+  const [selectedNl, setSelectedNl] = useState(() => localStorage.getItem('preferred_voice_nl') ?? '')
+  const [selectedEn, setSelectedEn] = useState(() => localStorage.getItem('preferred_voice_en') ?? '')
   const { speak } = useSpeech()
 
   useEffect(() => {
     const load = () => {
       const all = window.speechSynthesis?.getVoices() ?? []
-      setVoices(all.filter(v => v.lang.toLowerCase().startsWith('nl')))
+      setNlVoices(all.filter(v => v.lang.toLowerCase().startsWith('nl')))
+      setEnVoices(all.filter(v => v.lang.toLowerCase().startsWith('en')))
     }
     load()
     window.speechSynthesis?.addEventListener('voiceschanged', load)
     return () => window.speechSynthesis?.removeEventListener('voiceschanged', load)
   }, [])
 
-  if (voices.length < 2) return null
-
-  const select = (name: string) => {
-    setSelected(name)
-    localStorage.setItem('preferred_voice_nl', name)
-  }
-
-  const preview = () => speak('Goedemorgen, hoe gaat het met je?', 'nl')
+  const showNl = nlVoices.length >= 2
+  const showEn = enVoices.length >= 2
+  if (!showNl && !showEn) return null
 
   return (
-    <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+    <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
+      {showNl && (
+        <VoiceSection
+          label="🇳🇱 Dutch voice"
+          voices={nlVoices}
+          selected={selectedNl}
+          onSelect={name => { setSelectedNl(name); localStorage.setItem('preferred_voice_nl', name) }}
+          onPreview={() => speak('Goedemorgen, hoe gaat het met je?', 'nl')}
+        />
+      )}
+      {showNl && showEn && <hr className="border-gray-100 dark:border-gray-700" />}
+      {showEn && (
+        <VoiceSection
+          label="🇬🇧 English voice"
+          voices={enVoices}
+          selected={selectedEn}
+          onSelect={name => { setSelectedEn(name); localStorage.setItem('preferred_voice_en', name) }}
+          onPreview={() => speak('Good morning, how are you today?', 'en')}
+        />
+      )}
+    </div>
+  )
+}
+
+function VoiceSection({ label, voices, selected, onSelect, onPreview }: {
+  label: string
+  voices: SpeechSynthesisVoice[]
+  selected: string
+  onSelect: (name: string) => void
+  onPreview: () => void
+}) {
+  return (
+    <div>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">🔊 Dutch voice</p>
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</p>
         <button
-          onClick={preview}
+          onClick={onPreview}
           className="text-xs px-3 py-1 rounded-lg bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800 transition font-medium"
         >
           Preview
@@ -254,11 +289,11 @@ function VoicePicker() {
       <div className="flex flex-wrap gap-2">
         {voices.map(v => {
           const icon = voiceGenderIcon(v.name)
-          const label = voiceLabel(v.name)
+          const lbl = voiceLabel(v.name)
           return (
             <button
               key={v.name}
-              onClick={() => select(v.name)}
+              onClick={() => onSelect(v.name)}
               title={v.name}
               className={`px-3 py-1.5 text-sm rounded-lg border transition flex items-center gap-1.5 ${
                 selected === v.name
@@ -267,7 +302,7 @@ function VoicePicker() {
               }`}
             >
               {icon && <span className="text-base leading-none">{icon}</span>}
-              {label}
+              {lbl}
             </button>
           )
         })}
