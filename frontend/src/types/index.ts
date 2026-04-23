@@ -7,6 +7,8 @@ export interface WordList {
   builtin: number
   created_at: string
   word_count: number
+  seen_count: number
+  mastered_count: number
 }
 
 export interface Word {

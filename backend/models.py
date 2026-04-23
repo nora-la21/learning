@@ -22,6 +22,8 @@ class WordListResponse(BaseModel):
     builtin: int = 0
     created_at: str
     word_count: int = 0
+    seen_count: int = 0
+    mastered_count: int = 0
 
 
 class WordResponse(BaseModel):

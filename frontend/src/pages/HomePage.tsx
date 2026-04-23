@@ -172,6 +172,31 @@ export default function HomePage() {
   )
 }
 
+function MiniDonut({ mastered, seen, total }: { mastered: number; seen: number; total: number }) {
+  if (total === 0) return null
+  const r = 9
+  const c = 2 * Math.PI * r
+  const masteredFrac = Math.min(mastered / total, 1)
+  const inProgressFrac = Math.min((seen - mastered) / total, 1 - masteredFrac)
+  const masteredArc = masteredFrac * c
+  const inProgressArc = inProgressFrac * c
+  return (
+    <svg width="24" height="24" viewBox="-12 -12 24 24" style={{ transform: 'rotate(-90deg)' }}>
+      <circle r={r} fill="none" stroke="#e5e7eb" strokeWidth="3.5" className="dark:stroke-gray-700" />
+      {inProgressArc > 0 && (
+        <circle r={r} fill="none" stroke="#8b5cf6" strokeWidth="3.5"
+          strokeDasharray={`${inProgressArc} ${c - inProgressArc}`}
+          strokeDashoffset={c - masteredArc} />
+      )}
+      {masteredArc > 0 && (
+        <circle r={r} fill="none" stroke="#22c55e" strokeWidth="3.5"
+          strokeDasharray={`${masteredArc} ${c - masteredArc}`}
+          strokeDashoffset={0} />
+      )}
+    </svg>
+  )
+}
+
 // Known Dutch voice names → gender icon. Matched case-insensitively on substrings.
 const FEMALE_PATTERNS = ['elen', 'ellen', 'hanna', 'fenna', 'lotte', 'anna', 'femke', 'google']
 const MALE_PATTERNS   = ['xander', 'frank', 'ruben', 'david', 'thomas']
@@ -382,7 +407,7 @@ function ListCard({
             {!compact && ` · ${list.source_lang.toUpperCase()} → ${list.target_lang.toUpperCase()}`}
           </p>
         </div>
-        <div className="flex gap-2 shrink-0">
+        <div className="flex gap-2 shrink-0 items-center">
           <button
             onClick={toggleBrowse}
             className={`px-3 py-1.5 text-sm rounded-lg border transition ${
@@ -393,8 +418,12 @@ function ListCard({
           >{expanded ? 'Hide' : 'Browse'}</button>
           <button
             onClick={onStats}
-            className="px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-          >Stats</button>
+            title={`Mastered: ${list.mastered_count} · In progress: ${list.seen_count - list.mastered_count} · Not started: ${list.word_count - list.seen_count}`}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+          >
+            <MiniDonut mastered={list.mastered_count} seen={list.seen_count} total={list.word_count} />
+            Stats
+          </button>
           <button
             onClick={onPractice}
             className="px-4 py-1.5 text-sm rounded-lg bg-violet-600 text-white font-medium hover:bg-violet-700 transition"

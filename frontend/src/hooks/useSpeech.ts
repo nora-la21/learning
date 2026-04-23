@@ -14,8 +14,9 @@ function toBCP47(lang: string): string {
   return LANG_MAP[lang.toLowerCase()] ?? lang
 }
 
-// Module-level so every useSpeech instance shares the same pending timer
+// Module-level so every useSpeech instance shares the same pending state
 let pendingTimer: ReturnType<typeof setTimeout> | null = null
+let pendingVoicesHandler: (() => void) | null = null
 
 export function useSpeech() {
   const speak = useCallback((text: string, lang: string = 'nl', rate = 0.85) => {
@@ -23,17 +24,24 @@ export function useSpeech() {
     const bcp = toBCP47(lang)
     const langPrefix = bcp.split('-')[0]
 
-    // Cancel any queued speech AND any pending timer from a previous call
+    // Cancel any ongoing speech and clear all pending work
     window.speechSynthesis.cancel()
     if (pendingTimer !== null) {
       clearTimeout(pendingTimer)
       pendingTimer = null
     }
+    if (pendingVoicesHandler !== null) {
+      window.speechSynthesis.removeEventListener('voiceschanged', pendingVoicesHandler)
+      pendingVoicesHandler = null
+    }
 
     const doSpeak = () => {
       pendingTimer = null
-      window.speechSynthesis.cancel()
-      window.speechSynthesis.resume()
+      pendingVoicesHandler = null
+      // Resume only if paused — avoids the brief artifact caused by resume() after cancel()
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume()
+      }
 
       const voices = window.speechSynthesis.getVoices()
       const preferredName = localStorage.getItem(`preferred_voice_${langPrefix}`)
@@ -52,6 +60,7 @@ export function useSpeech() {
     }
 
     if (window.speechSynthesis.getVoices().length === 0) {
+      pendingVoicesHandler = doSpeak
       window.speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true })
     } else {
       pendingTimer = setTimeout(doSpeak, 150)
@@ -62,6 +71,10 @@ export function useSpeech() {
     if (pendingTimer !== null) {
       clearTimeout(pendingTimer)
       pendingTimer = null
+    }
+    if (pendingVoicesHandler !== null) {
+      window.speechSynthesis?.removeEventListener('voiceschanged', pendingVoicesHandler)
+      pendingVoicesHandler = null
     }
     window.speechSynthesis?.cancel()
   }, [])

@@ -16,7 +16,17 @@ def get_lists(builtin: Optional[bool] = Query(None)):
     else:
         where = ""
     rows = conn.execute(f"""
-        SELECT wl.*, COUNT(w.id) as word_count
+        SELECT wl.*,
+          COUNT(DISTINCT w.id) as word_count,
+          (SELECT COUNT(DISTINCT wp.word_id)
+           FROM word_progress wp
+           JOIN words ww ON ww.id = wp.word_id
+           WHERE ww.list_id = wl.id AND ww.manually_excluded = 0) as seen_count,
+          (SELECT COUNT(DISTINCT ww2.id)
+           FROM words ww2
+           WHERE ww2.list_id = wl.id AND ww2.manually_excluded = 0
+           AND (SELECT COALESCE(SUM(wp2.mastered), 0)
+                FROM word_progress wp2 WHERE wp2.word_id = ww2.id) >= 4) as mastered_count
         FROM word_lists wl
         LEFT JOIN words w ON w.list_id = wl.id
         {where}
