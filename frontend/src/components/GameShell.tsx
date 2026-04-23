@@ -47,7 +47,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
   const [waitingForNext, setWaitingForNext] = useState(false)
   const pendingAdvance = useRef<(() => void) | null>(null)
   const navigate = useNavigate()
-  const { speak } = useSpeech()
+  const { speak, preload } = useSpeech()
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -90,6 +90,8 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
     try {
       const q = await api.nextQuestion(sid)
       setQuestion(q)
+      // Start fetching audio immediately so it's ready when the component speaks
+      preload(q.prompt, q.source_lang)
     } catch {
       setFinished(true)
     }

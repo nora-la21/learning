@@ -21,9 +21,17 @@ const DEFAULT_BROWSER_VOICE: Record<string, string> = {
 // Module-level shared state
 let currentAudio: HTMLAudioElement | null = null
 let pendingVoicesHandler: (() => void) | null = null
-// Count consecutive backend failures; bypass backend only after 3 in a row
 let consecutiveFailures = 0
-let bypassUntil = 0  // timestamp — bypass backend until this time
+let bypassUntil = 0
+
+// Preload cache: url → Audio element already fetching
+const preloadCache = new Map<string, HTMLAudioElement>()
+
+function buildUrl(text: string, lang: string): string {
+  const langPrefix = lang.toLowerCase().split('-')[0]
+  const voice = localStorage.getItem(`preferred_voice_${langPrefix}`) ?? ''
+  return `/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}${voice ? `&voice=${encodeURIComponent(voice)}` : ''}`
+}
 
 function speakWithWebSpeech(text: string, lang: string, rate: number) {
   if (!window.speechSynthesis) return
@@ -66,6 +74,17 @@ function speakWithWebSpeech(text: string, lang: string, rate: number) {
 }
 
 export function useSpeech() {
+  const preload = useCallback((text: string, lang: string = 'nl') => {
+    if (!text?.trim() || Date.now() < bypassUntil) return
+    const url = buildUrl(text, lang)
+    if (preloadCache.has(url)) return
+    const audio = new Audio(url)
+    audio.preload = 'auto'
+    preloadCache.set(url, audio)
+    // Evict after 60s to avoid stale entries
+    setTimeout(() => preloadCache.delete(url), 60_000)
+  }, [])
+
   const speak = useCallback((text: string, lang: string = 'nl', rate = 0.85) => {
     if (!text?.trim()) return
 
@@ -74,23 +93,22 @@ export function useSpeech() {
       currentAudio = null
     }
 
-    // Bypass backend only during a short cooldown after repeated failures
     if (Date.now() < bypassUntil) {
       speakWithWebSpeech(text, lang, rate)
       return
     }
 
-    const langPrefix = lang.toLowerCase().split('-')[0]
-    const voice = localStorage.getItem(`preferred_voice_${langPrefix}`) ?? ''
-    const url = `/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}${voice ? `&voice=${encodeURIComponent(voice)}` : ''}`
+    const url = buildUrl(text, lang)
 
-    const audio = new Audio(url)
+    // Use preloaded element if available, otherwise create fresh
+    const audio = preloadCache.get(url) ?? new Audio(url)
+    preloadCache.delete(url)
     currentAudio = audio
+
     audio.play().catch(() => {
       if (currentAudio === audio) currentAudio = null
       consecutiveFailures++
       if (consecutiveFailures >= 3) {
-        // Back off for 30 seconds then try the neural voice again
         bypassUntil = Date.now() + 30_000
         consecutiveFailures = 0
       }
@@ -98,7 +116,7 @@ export function useSpeech() {
     })
     audio.addEventListener('ended', () => {
       if (currentAudio === audio) currentAudio = null
-      consecutiveFailures = 0  // reset on success
+      consecutiveFailures = 0
     })
   }, [])
 
@@ -114,5 +132,5 @@ export function useSpeech() {
     window.speechSynthesis?.cancel()
   }, [])
 
-  return { speak, cancel }
+  return { speak, preload, cancel }
 }
