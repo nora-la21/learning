@@ -14,62 +14,108 @@ function toBCP47(lang: string): string {
   return LANG_MAP[lang.toLowerCase()] ?? lang
 }
 
-// Hardcoded defaults when the user hasn't picked a voice
-const DEFAULT_VOICE: Record<string, string> = {
+const DEFAULT_BROWSER_VOICE: Record<string, string> = {
   en: 'Samantha',
 }
 
-// Module-level so every useSpeech instance shares the same pending state
+// Module-level shared state
+let currentAudio: HTMLAudioElement | null = null
 let pendingVoicesHandler: (() => void) | null = null
+
+// Cached availability check — null means not yet fetched
+let ttsAvailable: boolean | null = null
+
+async function checkTtsAvailable(): Promise<boolean> {
+  if (ttsAvailable !== null) return ttsAvailable
+  try {
+    const r = await fetch('/api/tts/available')
+    ttsAvailable = r.ok && (await r.json()).available === true
+  } catch {
+    ttsAvailable = false
+  }
+  return ttsAvailable
+}
+
+// Pre-fetch on module load so first speak() call has the answer ready
+checkTtsAvailable()
+
+function speakWithWebSpeech(text: string, lang: string, rate: number) {
+  if (!window.speechSynthesis) return
+  const bcp = toBCP47(lang)
+  const langPrefix = bcp.split('-')[0]
+
+  window.speechSynthesis.cancel()
+  if (pendingVoicesHandler !== null) {
+    window.speechSynthesis.removeEventListener('voiceschanged', pendingVoicesHandler)
+    pendingVoicesHandler = null
+  }
+
+  const doSpeak = () => {
+    pendingVoicesHandler = null
+    window.speechSynthesis.resume()
+    const voices = window.speechSynthesis.getVoices()
+    const preferredName =
+      localStorage.getItem(`preferred_voice_${langPrefix}`) ??
+      DEFAULT_BROWSER_VOICE[langPrefix] ??
+      null
+    const voice =
+      (preferredName ? voices.find(v => v.name === preferredName && v.lang.startsWith(langPrefix)) : null) ??
+      voices.find(v => v.lang === bcp) ??
+      voices.find(v => v.lang.startsWith(langPrefix)) ??
+      null
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.voice = voice
+    utterance.lang = voice?.lang ?? bcp
+    utterance.rate = rate
+    utterance.pitch = 1.0
+    window.speechSynthesis.speak(utterance)
+  }
+
+  if (window.speechSynthesis.getVoices().length === 0) {
+    pendingVoicesHandler = doSpeak
+    window.speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true })
+  } else {
+    doSpeak()
+  }
+}
 
 export function useSpeech() {
   const speak = useCallback((text: string, lang: string = 'nl', rate = 0.85) => {
-    if (!window.speechSynthesis || !text?.trim()) return
-    const bcp = toBCP47(lang)
-    const langPrefix = bcp.split('-')[0]
+    if (!text?.trim()) return
 
-    // Cancel any ongoing speech and remove any stale voiceschanged listener
-    window.speechSynthesis.cancel()
-    if (pendingVoicesHandler !== null) {
-      window.speechSynthesis.removeEventListener('voiceschanged', pendingVoicesHandler)
-      pendingVoicesHandler = null
+    // Stop any audio already playing
+    if (currentAudio) {
+      currentAudio.pause()
+      currentAudio = null
     }
 
-    const doSpeak = () => {
-      pendingVoicesHandler = null
-      // Chrome: resume() after cancel() prevents the synthesis engine from getting stuck
-      window.speechSynthesis.resume()
-
-      const voices = window.speechSynthesis.getVoices()
-      const preferredName = localStorage.getItem(`preferred_voice_${langPrefix}`)
-        ?? DEFAULT_VOICE[langPrefix]
-        ?? null
-      const voice =
-        (preferredName ? voices.find(v => v.name === preferredName && v.lang.startsWith(langPrefix)) : null) ??
-        voices.find(v => v.lang === bcp) ??
-        voices.find(v => v.lang.startsWith(langPrefix)) ??
-        null
-
-      const utterance = new SpeechSynthesisUtterance(text)
-      utterance.voice = voice
-      utterance.lang = voice?.lang ?? bcp
-      utterance.rate = rate
-      utterance.pitch = 1.0
-      window.speechSynthesis.speak(utterance)
+    if (ttsAvailable === false) {
+      speakWithWebSpeech(text, lang, rate)
+      return
     }
 
-    if (window.speechSynthesis.getVoices().length === 0) {
-      // Voices not yet loaded — speak once they arrive
-      pendingVoicesHandler = doSpeak
-      window.speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true })
-    } else {
-      // Synchronous call — no setTimeout — Chrome requires speak() in the same
-      // execution context as the user gesture; a setTimeout breaks that chain
-      doSpeak()
-    }
+    const langPrefix = lang.toLowerCase().split('-')[0]
+    const voice = localStorage.getItem(`preferred_voice_${langPrefix}`) ?? ''
+    const url = `/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}${voice ? `&voice=${encodeURIComponent(voice)}` : ''}`
+
+    const audio = new Audio(url)
+    currentAudio = audio
+    audio.play().catch(() => {
+      if (currentAudio === audio) currentAudio = null
+      // TTS endpoint unavailable — fall back to browser speech
+      ttsAvailable = false
+      speakWithWebSpeech(text, lang, rate)
+    })
+    audio.addEventListener('ended', () => {
+      if (currentAudio === audio) currentAudio = null
+    })
   }, [])
 
   const cancel = useCallback(() => {
+    if (currentAudio) {
+      currentAudio.pause()
+      currentAudio = null
+    }
     if (pendingVoicesHandler !== null) {
       window.speechSynthesis?.removeEventListener('voiceschanged', pendingVoicesHandler)
       pendingVoicesHandler = null

@@ -197,7 +197,15 @@ function MiniDonut({ mastered, seen, total }: { mastered: number; seen: number; 
   )
 }
 
-// Voice name → gender icon. Check 'female' before 'male' since 'female' contains 'male'.
+// Preset Google TTS voices offered in the picker
+const GOOGLE_NL_VOICES = [
+  { name: 'nl-NL-Neural2-A', label: 'Neural2 A', icon: '♀' },
+  { name: 'nl-NL-Neural2-B', label: 'Neural2 B', icon: '♂' },
+  { name: 'nl-NL-Wavenet-A', label: 'WaveNet A', icon: '♀' },
+  { name: 'nl-NL-Wavenet-D', label: 'WaveNet D', icon: '♂' },
+]
+
+// Browser voice name → gender icon (fallback mode)
 const FEMALE_PATTERNS = [
   'female', 'elen', 'ellen', 'hanna', 'fenna', 'lotte', 'anna', 'femke',
   'zira', 'hazel', 'susan', 'kate', 'emma', 'samantha', 'karen', 'victoria',
@@ -209,24 +217,28 @@ const MALE_PATTERNS = [
   'david', 'daniel', 'george', 'mark', 'oliver', 'arthur', 'liam',
   'james', 'ryan', 'lee', 'william', 'charles', 'fred', 'guy', 'richard',
 ]
-
-function voiceGenderIcon(name: string): string {
+function browserVoiceIcon(name: string): string {
   const lower = name.toLowerCase()
   if (FEMALE_PATTERNS.some(p => lower.includes(p))) return '♀'
   if (MALE_PATTERNS.some(p => lower.includes(p)))   return '♂'
   return ''
 }
-
-function voiceLabel(name: string): string {
+function browserVoiceLabel(name: string): string {
   return name.replace(/\s+(Online|Desktop|Natural).*$/i, '').replace(/\s+-\s+.*$/, '').trim()
 }
 
 function VoicePicker() {
+  const [ttsAvailable, setTtsAvailable] = useState<boolean | null>(null)
   const [nlVoices, setNlVoices] = useState<SpeechSynthesisVoice[]>([])
-  const [selectedNl, setSelectedNl] = useState(() => localStorage.getItem('preferred_voice_nl') ?? '')
+  const [selected, setSelected] = useState(() => localStorage.getItem('preferred_voice_nl') ?? '')
   const { speak } = useSpeech()
 
   useEffect(() => {
+    fetch('/api/tts/available').then(r => r.json()).then(d => setTtsAvailable(!!d.available)).catch(() => setTtsAvailable(false))
+  }, [])
+
+  useEffect(() => {
+    if (ttsAvailable !== false) return
     const load = () => {
       const all = window.speechSynthesis?.getVoices() ?? []
       setNlVoices(all.filter(v => v.lang.toLowerCase().startsWith('nl')))
@@ -234,62 +246,53 @@ function VoicePicker() {
     load()
     window.speechSynthesis?.addEventListener('voiceschanged', load)
     return () => window.speechSynthesis?.removeEventListener('voiceschanged', load)
-  }, [])
+  }, [ttsAvailable])
 
-  if (nlVoices.length < 2) return null
+  if (ttsAvailable === null) return null
+  if (!ttsAvailable && nlVoices.length < 2) return null
+
+  const pick = (name: string) => { setSelected(name); localStorage.setItem('preferred_voice_nl', name) }
 
   return (
     <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
-      <VoiceSection
-        label="🇳🇱 Dutch voice"
-        voices={nlVoices}
-        selected={selectedNl}
-        onSelect={name => { setSelectedNl(name); localStorage.setItem('preferred_voice_nl', name) }}
-        onPreview={() => speak('Goedemorgen, hoe gaat het met je?', 'nl')}
-      />
-    </div>
-  )
-}
-
-function VoiceSection({ label, voices, selected, onSelect, onPreview }: {
-  label: string
-  voices: SpeechSynthesisVoice[]
-  selected: string
-  onSelect: (name: string) => void
-  onPreview: () => void
-}) {
-  return (
-    <div>
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">{label}</p>
-        <button
-          onClick={onPreview}
-          className="text-xs px-3 py-1 rounded-lg bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800 transition font-medium"
-        >
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">🇳🇱 Dutch voice</p>
+        <button onClick={() => speak('Goedemorgen, hoe gaat het met je?', 'nl')}
+          className="text-xs px-3 py-1 rounded-lg bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800 transition font-medium">
           Preview
         </button>
       </div>
       <div className="flex flex-wrap gap-2">
-        {voices.map(v => {
-          const icon = voiceGenderIcon(v.name)
-          const lbl = voiceLabel(v.name)
-          return (
-            <button
-              key={v.name}
-              onClick={() => onSelect(v.name)}
-              title={v.name}
-              className={`px-3 py-1.5 text-sm rounded-lg border transition flex items-center gap-1.5 ${
-                selected === v.name
-                  ? 'border-violet-500 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-medium'
-                  : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950'
-              }`}
-            >
-              {icon && <span className="text-base leading-none">{icon}</span>}
-              {lbl}
-            </button>
-          )
-        })}
+        {ttsAvailable
+          ? GOOGLE_NL_VOICES.map(v => (
+              <button key={v.name} onClick={() => pick(v.name)} title={v.name}
+                className={`px-3 py-1.5 text-sm rounded-lg border transition flex items-center gap-1.5 ${
+                  selected === v.name
+                    ? 'border-violet-500 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-medium'
+                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950'
+                }`}>
+                <span className="text-base leading-none">{v.icon}</span>{v.label}
+              </button>
+            ))
+          : nlVoices.map(v => {
+              const icon = browserVoiceIcon(v.name)
+              const lbl  = browserVoiceLabel(v.name)
+              return (
+                <button key={v.name} onClick={() => pick(v.name)} title={v.name}
+                  className={`px-3 py-1.5 text-sm rounded-lg border transition flex items-center gap-1.5 ${
+                    selected === v.name
+                      ? 'border-violet-500 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-medium'
+                      : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950'
+                  }`}>
+                  {icon && <span className="text-base leading-none">{icon}</span>}{lbl}
+                </button>
+              )
+            })
+        }
       </div>
+      {ttsAvailable && (
+        <p className="text-xs text-gray-400 mt-2">Neural2 = highest quality · WaveNet = good quality</p>
+      )}
     </div>
   )
 }

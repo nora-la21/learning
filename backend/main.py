@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from database import init_db, seed_builtin_lists
-from routers import words, upload, game, progress
+from routers import words, upload, game, progress, tts
 
 
 @asynccontextmanager
@@ -26,6 +26,7 @@ app.include_router(words.router)
 app.include_router(upload.router)
 app.include_router(game.router)
 app.include_router(progress.router)
+app.include_router(tts.router)
 
 
 @app.get("/api/health")
