@@ -95,21 +95,17 @@ def create_session(list_id: int, mode: str, session_size: int) -> GameSession:
     if len(weighted) < 4:
         raise ValueError("Need at least 4 words to start a session")
 
-    ids = [x[0] for x in weighted]
-    weights = [x[1] for x in weighted]
-    size = min(session_size, len(ids))
-    selected = random.choices(ids, weights=weights, k=size * 2)
-    seen: set[int] = set()
-    unique: list[int] = []
-    for wid in selected:
-        if wid not in seen:
-            seen.add(wid)
-            unique.append(wid)
-            if len(unique) >= size:
-                break
-    remaining = [i for i in ids if i not in seen]
-    random.shuffle(remaining)
-    unique.extend(remaining[: size - len(unique)])
+    size = min(session_size, len(weighted))
+
+    # Bucket by priority so every word gets a fair chance over time.
+    # High priority: new (w=3.0) or due (w=2.0). Low priority: everything else.
+    priority = [wid for wid, w in weighted if w >= 2.0]
+    rest     = [wid for wid, w in weighted if w < 2.0]
+    random.shuffle(priority)
+    random.shuffle(rest)
+    pool = priority + rest
+    unique = pool[:size]
+    random.shuffle(unique)  # don't always start with priority words
 
     all_modes = ALL_IN_ONE_SEQUENCE if mode == "all_in_one" else [mode]
 
