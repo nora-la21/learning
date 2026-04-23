@@ -81,7 +81,7 @@ def _sm2(reps: int, ef: float, interval: int, correct: bool, quality: int) -> tu
         elif new_reps == 2:
             new_interval = 6
         else:
-            new_interval = round(interval * ef)
+            new_interval = min(round(interval * ef), 365)
         new_ef = ef + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
         new_ef = max(1.3, new_ef)
     return new_reps, new_ef, new_interval
