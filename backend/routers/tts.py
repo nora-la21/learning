@@ -38,7 +38,8 @@ async def tts(
     voice: str = Query(""),
 ):
     lang_prefix = lang.lower().split("-")[0]
-    if not voice:
+    # Reject browser voice names (e.g. "Samantha") — only accept Neural voices
+    if not voice or not voice.endswith("Neural"):
         voice = DEFAULT_VOICES.get(lang_prefix, "en-US-JennyNeural")
 
     cache_key = hashlib.md5(f"{voice}:{text}".encode()).hexdigest()
