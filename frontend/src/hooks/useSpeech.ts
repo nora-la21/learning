@@ -15,7 +15,6 @@ function toBCP47(lang: string): string {
 }
 
 // Module-level so every useSpeech instance shares the same pending state
-let pendingTimer: ReturnType<typeof setTimeout> | null = null
 let pendingVoicesHandler: (() => void) | null = null
 
 export function useSpeech() {
@@ -24,22 +23,16 @@ export function useSpeech() {
     const bcp = toBCP47(lang)
     const langPrefix = bcp.split('-')[0]
 
-    // Cancel any ongoing speech and clear all pending work
+    // Cancel any ongoing speech and remove any stale voiceschanged listener
     window.speechSynthesis.cancel()
-    if (pendingTimer !== null) {
-      clearTimeout(pendingTimer)
-      pendingTimer = null
-    }
     if (pendingVoicesHandler !== null) {
       window.speechSynthesis.removeEventListener('voiceschanged', pendingVoicesHandler)
       pendingVoicesHandler = null
     }
 
     const doSpeak = () => {
-      pendingTimer = null
       pendingVoicesHandler = null
-      // Chrome bug: synthesis silently stops working without cancel+resume before each utterance
-      window.speechSynthesis.cancel()
+      // Chrome: resume() after cancel() prevents the synthesis engine from getting stuck
       window.speechSynthesis.resume()
 
       const voices = window.speechSynthesis.getVoices()
@@ -59,18 +52,17 @@ export function useSpeech() {
     }
 
     if (window.speechSynthesis.getVoices().length === 0) {
+      // Voices not yet loaded — speak once they arrive
       pendingVoicesHandler = doSpeak
       window.speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true })
     } else {
-      pendingTimer = setTimeout(doSpeak, 150)
+      // Synchronous call — no setTimeout — Chrome requires speak() in the same
+      // execution context as the user gesture; a setTimeout breaks that chain
+      doSpeak()
     }
   }, [])
 
   const cancel = useCallback(() => {
-    if (pendingTimer !== null) {
-      clearTimeout(pendingTimer)
-      pendingTimer = null
-    }
     if (pendingVoicesHandler !== null) {
       window.speechSynthesis?.removeEventListener('voiceschanged', pendingVoicesHandler)
       pendingVoicesHandler = null
