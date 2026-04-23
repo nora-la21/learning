@@ -72,9 +72,17 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
         <button
           onClick={submit}
           disabled={!input.trim() || submitted}
-          className="w-full py-3 rounded-xl bg-violet-600 text-white font-semibold hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+          className={`w-full py-3 rounded-xl text-white font-semibold transition disabled:cursor-not-allowed
+            ${feedback?.correct  ? 'bg-green-500' :
+              feedback?.almost   ? 'bg-amber-500' :
+              feedback           ? 'bg-red-500' :
+              'bg-violet-600 hover:bg-violet-700 disabled:opacity-50'}`}
         >
-          {submitted ? 'Checking…' : 'Check ↵'}
+          {!submitted      ? 'Check ↵' :
+           !feedback       ? 'Checking…' :
+           feedback.correct ? '✓ Correct!' :
+           feedback.almost  ? '~ Almost' :
+                              '✗ Wrong'}
         </button>
         {feedback && !feedback.correct && (
           <div className="px-4 py-2.5 rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-center">
