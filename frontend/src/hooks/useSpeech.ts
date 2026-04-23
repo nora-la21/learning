@@ -52,7 +52,7 @@ export function useSpeech() {
     if (window.speechSynthesis.getVoices().length === 0) {
       window.speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true })
     } else {
-      pendingTimer = setTimeout(doSpeak, 80)
+      pendingTimer = setTimeout(doSpeak, 150)
     }
   }, [])
 

@@ -107,8 +107,8 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
       setStreak(result.streak)
       setProgress(result.progress_index)
 
-      if (result.correct) {
-        // Always speak the Dutch (source) word — prompt if it's Dutch, else correct_answer
+      if (result.correct && question.mode !== 'listening') {
+        // Speak the Dutch word for reinforcement — skip listening since user just heard it
         const dutchWord = question.prompt_lang === question.source_lang
           ? question.prompt
           : result.correct_answer

@@ -43,9 +43,8 @@ export default function ListeningMode({ question, onAnswer, feedback }: Props) {
     return () => window.removeEventListener('keydown', handler)
   }, [question.question_id, chosen])
 
-  const handleOption = (opt: string, lang: string) => {
+  const handleOption = (opt: string, _lang: string) => {
     if (chosen) return
-    speak(opt, lang)
     setChosen(opt)
     setTimeout(() => {
       onAnswer(opt, Date.now() - startTime.current)
