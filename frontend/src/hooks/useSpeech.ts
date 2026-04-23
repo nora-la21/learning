@@ -21,23 +21,8 @@ const DEFAULT_BROWSER_VOICE: Record<string, string> = {
 // Module-level shared state
 let currentAudio: HTMLAudioElement | null = null
 let pendingVoicesHandler: (() => void) | null = null
-
-// Cached availability check — null means not yet fetched
+// null = not yet checked, true/false = result cached after first attempt
 let ttsAvailable: boolean | null = null
-
-async function checkTtsAvailable(): Promise<boolean> {
-  if (ttsAvailable !== null) return ttsAvailable
-  try {
-    const r = await fetch('/api/tts/available')
-    ttsAvailable = r.ok && (await r.json()).available === true
-  } catch {
-    ttsAvailable = false
-  }
-  return ttsAvailable
-}
-
-// Pre-fetch on module load so first speak() call has the answer ready
-checkTtsAvailable()
 
 function speakWithWebSpeech(text: string, lang: string, rate: number) {
   if (!window.speechSynthesis) return
@@ -83,12 +68,12 @@ export function useSpeech() {
   const speak = useCallback((text: string, lang: string = 'nl', rate = 0.85) => {
     if (!text?.trim()) return
 
-    // Stop any audio already playing
     if (currentAudio) {
       currentAudio.pause()
       currentAudio = null
     }
 
+    // Skip TTS endpoint if we already know it's unavailable
     if (ttsAvailable === false) {
       speakWithWebSpeech(text, lang, rate)
       return
@@ -102,12 +87,12 @@ export function useSpeech() {
     currentAudio = audio
     audio.play().catch(() => {
       if (currentAudio === audio) currentAudio = null
-      // TTS endpoint unavailable — fall back to browser speech
       ttsAvailable = false
       speakWithWebSpeech(text, lang, rate)
     })
     audio.addEventListener('ended', () => {
       if (currentAudio === audio) currentAudio = null
+      ttsAvailable = true  // confirmed working
     })
   }, [])
 

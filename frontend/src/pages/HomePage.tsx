@@ -197,12 +197,12 @@ function MiniDonut({ mastered, seen, total }: { mastered: number; seen: number; 
   )
 }
 
-// Preset Google TTS voices offered in the picker
-const GOOGLE_NL_VOICES = [
-  { name: 'nl-NL-Neural2-A', label: 'Neural2 A', icon: '♀' },
-  { name: 'nl-NL-Neural2-B', label: 'Neural2 B', icon: '♂' },
-  { name: 'nl-NL-Wavenet-A', label: 'WaveNet A', icon: '♀' },
-  { name: 'nl-NL-Wavenet-D', label: 'WaveNet D', icon: '♂' },
+// Microsoft Edge Neural voices for Dutch
+const NL_VOICES = [
+  { name: 'nl-NL-ColetteNeural', label: 'Colette',       icon: '♀' },
+  { name: 'nl-NL-MaartenNeural', label: 'Maarten',       icon: '♂' },
+  { name: 'nl-BE-DenaNeural',    label: 'Dena (BE)',     icon: '♀' },
+  { name: 'nl-BE-ArnaudNeural',  label: 'Arnaud (BE)',   icon: '♂' },
 ]
 
 // Browser voice name → gender icon (fallback mode)
@@ -264,7 +264,7 @@ function VoicePicker() {
       </div>
       <div className="flex flex-wrap gap-2">
         {ttsAvailable
-          ? GOOGLE_NL_VOICES.map(v => (
+          ? NL_VOICES.map(v => (
               <button key={v.name} onClick={() => pick(v.name)} title={v.name}
                 className={`px-3 py-1.5 text-sm rounded-lg border transition flex items-center gap-1.5 ${
                   selected === v.name
@@ -291,7 +291,7 @@ function VoicePicker() {
         }
       </div>
       {ttsAvailable && (
-        <p className="text-xs text-gray-400 mt-2">Neural2 = highest quality · WaveNet = good quality</p>
+        <p className="text-xs text-gray-400 mt-2">BE = Belgian Dutch accent</p>
       )}
     </div>
   )
