@@ -38,10 +38,9 @@ export function useSpeech() {
     const doSpeak = () => {
       pendingTimer = null
       pendingVoicesHandler = null
-      // Resume only if paused — avoids the brief artifact caused by resume() after cancel()
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume()
-      }
+      // Chrome bug: synthesis silently stops working without cancel+resume before each utterance
+      window.speechSynthesis.cancel()
+      window.speechSynthesis.resume()
 
       const voices = window.speechSynthesis.getVoices()
       const preferredName = localStorage.getItem(`preferred_voice_${langPrefix}`)
