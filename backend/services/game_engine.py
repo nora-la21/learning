@@ -63,14 +63,22 @@ def create_session(list_id: int, mode: str, session_size: int) -> GameSession:
 
     if mode == "all_in_one":
         all_words = conn.execute(
-            "SELECT w.id, "
-            "(SELECT COUNT(*) FROM word_progress wp WHERE wp.word_id = w.id AND wp.mastered = 1) as modes_mastered "
-            "FROM words w WHERE w.list_id = ? AND w.manually_excluded = 0",
+            "SELECT w.id, COUNT(wp.id) as mode_count, "
+            "SUM(CASE WHEN wp.mastered = 1 THEN 1 ELSE 0 END) as modes_mastered "
+            "FROM words w "
+            "LEFT JOIN word_progress wp ON wp.word_id = w.id "
+            "WHERE w.list_id = ? AND w.manually_excluded = 0 "
+            "GROUP BY w.id",
             (list_id,),
         ).fetchall()
         conn.close()
         for row in all_words:
-            w = 0.1 if row["modes_mastered"] >= 4 else 1.0
+            if row["modes_mastered"] >= 4:
+                w = 0.1   # fully mastered
+            elif row["mode_count"] == 0:
+                w = 3.0   # never seen in any mode yet
+            else:
+                w = 1.0   # in progress
             weighted.append((row["id"], w))
     else:
         all_words = conn.execute(
