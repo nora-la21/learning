@@ -91,6 +91,9 @@ export default function HomePage() {
           )}
         </div>
 
+        {/* Voice picker */}
+        <VoicePicker />
+
         {/* Tabs */}
         <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 mb-6">
           <button
@@ -164,6 +167,62 @@ export default function HomePage() {
             ))}
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+function VoicePicker() {
+  const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
+  const [selected, setSelected] = useState<string>(() =>
+    localStorage.getItem('preferred_voice_nl') ?? ''
+  )
+  const { speak } = useSpeech()
+
+  useEffect(() => {
+    const load = () => {
+      const all = window.speechSynthesis?.getVoices() ?? []
+      setVoices(all.filter(v => v.lang.toLowerCase().startsWith('nl')))
+    }
+    load()
+    window.speechSynthesis?.addEventListener('voiceschanged', load)
+    return () => window.speechSynthesis?.removeEventListener('voiceschanged', load)
+  }, [])
+
+  if (voices.length < 2) return null
+
+  const select = (name: string) => {
+    setSelected(name)
+    localStorage.setItem('preferred_voice_nl', name)
+  }
+
+  const preview = () => speak('Goedemorgen, hoe gaat het met je?', 'nl')
+
+  return (
+    <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+      <div className="flex items-center justify-between mb-3">
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">🔊 Dutch voice</p>
+        <button
+          onClick={preview}
+          className="text-xs px-3 py-1 rounded-lg bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800 transition font-medium"
+        >
+          Preview
+        </button>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {voices.map(v => (
+          <button
+            key={v.name}
+            onClick={() => select(v.name)}
+            className={`px-3 py-1.5 text-sm rounded-lg border transition ${
+              selected === v.name
+                ? 'border-violet-500 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-medium'
+                : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950'
+            }`}
+          >
+            {v.name}
+          </button>
+        ))}
       </div>
     </div>
   )

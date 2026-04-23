@@ -36,7 +36,9 @@ export function useSpeech() {
       window.speechSynthesis.resume()
 
       const voices = window.speechSynthesis.getVoices()
+      const preferredName = localStorage.getItem(`preferred_voice_${langPrefix}`)
       const voice =
+        (preferredName ? voices.find(v => v.name === preferredName && v.lang.startsWith(langPrefix)) : null) ??
         voices.find(v => v.lang === bcp) ??
         voices.find(v => v.lang.startsWith(langPrefix)) ??
         null
