@@ -35,9 +35,8 @@ def get_words(list_id: int):
         conn.close()
         raise HTTPException(status_code=404, detail="Word list not found")
     words = conn.execute("""
-        SELECT w.*, COALESCE(wp.manually_excluded, 0) as learned
+        SELECT w.*, w.manually_excluded as learned
         FROM words w
-        LEFT JOIN word_progress wp ON wp.word_id = w.id
         WHERE w.list_id = ?
         ORDER BY w.source_word
     """, (list_id,)).fetchall()
@@ -96,11 +95,7 @@ def set_word_learned(word_id: int, body: SetLearnedRequest):
     if not word:
         conn.close()
         raise HTTPException(status_code=404, detail="Word not found")
-    conn.execute("""
-        INSERT INTO word_progress (word_id, manually_excluded)
-        VALUES (?, ?)
-        ON CONFLICT(word_id) DO UPDATE SET manually_excluded = excluded.manually_excluded
-    """, (word_id, 1 if body.learned else 0))
+    conn.execute("UPDATE words SET manually_excluded = ? WHERE id = ?", (1 if body.learned else 0, word_id))
     conn.commit()
     conn.close()
 
@@ -110,18 +105,7 @@ def reset_progress(body: ResetProgressRequest):
     if not body.word_ids:
         return
     conn = get_db()
-    from datetime import datetime, timezone
-    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
     for wid in body.word_ids:
-        conn.execute("""
-            INSERT INTO word_progress
-                (word_id, repetitions, ease_factor, interval_days, next_review_at,
-                 correct_count, incorrect_count, mastered, manually_excluded)
-            VALUES (?, 0, 2.5, 1, ?, 0, 0, 0, 0)
-            ON CONFLICT(word_id) DO UPDATE SET
-                repetitions=0, ease_factor=2.5, interval_days=1,
-                next_review_at=excluded.next_review_at,
-                correct_count=0, incorrect_count=0, mastered=0, manually_excluded=0
-        """, (wid, now))
+        conn.execute("DELETE FROM word_progress WHERE word_id = ?", (wid,))
     conn.commit()
     conn.close()

@@ -81,17 +81,22 @@ export interface ProgressSummary {
   current_streak: number
 }
 
+export interface WordModeProgress {
+  mode: string
+  repetitions: number
+  correct_count: number
+  incorrect_count: number
+  mastered: boolean
+}
+
 export interface WordProgressDetail {
   word_id: number
   source_word: string
   target_word: string
-  repetitions: number
-  ease_factor: number
-  interval_days: number
-  next_review_at: string
-  mastered: boolean
-  correct_count: number
-  incorrect_count: number
+  modes: WordModeProgress[]
+  total_correct: number
+  total_incorrect: number
+  fully_mastered: boolean
 }
 
 export interface HeatmapEntry {

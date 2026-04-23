@@ -125,17 +125,22 @@ class ProgressSummary(BaseModel):
     current_streak: int
 
 
+class WordModeProgress(BaseModel):
+    mode: str
+    repetitions: int
+    correct_count: int
+    incorrect_count: int
+    mastered: bool
+
+
 class WordProgressDetail(BaseModel):
     word_id: int
     source_word: str
     target_word: str
-    repetitions: int
-    ease_factor: float
-    interval_days: int
-    next_review_at: str
-    mastered: bool
-    correct_count: int
-    incorrect_count: int
+    modes: list[WordModeProgress]
+    total_correct: int
+    total_incorrect: int
+    fully_mastered: bool
 
 
 class HeatmapEntry(BaseModel):

@@ -6,6 +6,20 @@ import type { HeatmapEntry, ProgressSummary, WordProgressDetail } from '../types
 
 const COLORS = { mastered: '#22c55e', in_progress: '#a78bfa', not_started: '#e5e7eb' }
 
+const ALL_MODES = ['multiple_choice', 'reverse_mc', 'listening', 'reverse_type_it']
+const MODE_ICONS: Record<string, string> = {
+  multiple_choice: '🃏',
+  reverse_mc: '🔄',
+  listening: '👂',
+  reverse_type_it: '✍️',
+}
+const MODE_LABELS: Record<string, string> = {
+  multiple_choice: 'Word → Translation',
+  reverse_mc: 'Translation → Word',
+  listening: 'Listening',
+  reverse_type_it: 'Type It',
+}
+
 export default function ProgressPage() {
   const { listId } = useParams<{ listId: string }>()
   const id = Number(listId)
@@ -39,12 +53,11 @@ export default function ProgressPage() {
     { name: 'Not Started', value: summary.not_started, color: COLORS.not_started },
   ].filter(d => d.value > 0) : []
 
-  // Last 7 days bar chart from heatmap
   const last7 = getLast7Days(heatmap)
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
-      <div className="max-w-3xl mx-auto px-4 py-10">
+      <div className="max-w-4xl mx-auto px-4 py-10">
         <div className="flex items-center gap-4 mb-8">
           <button
             onClick={() => navigate('/')}
@@ -56,21 +69,21 @@ export default function ProgressPage() {
         {summary && (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
             <StatCard label="Total Words" value={summary.total_words} />
-            <StatCard label="Mastered" value={summary.mastered} color="text-green-600 dark:text-green-400" />
+            <StatCard label="Fully Mastered" value={summary.mastered} color="text-green-600 dark:text-green-400" />
             <StatCard label="Accuracy (7d)" value={summary.accuracy_7d != null ? `${summary.accuracy_7d}%` : '—'} />
             <StatCard label="Streak" value={`${summary.current_streak}d`} color="text-orange-500" />
           </div>
         )}
 
         <div className="grid md:grid-cols-2 gap-6 mb-8">
-          {/* Pie chart */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Mastery</h3>
+            <p className="text-xs text-gray-400 mb-3">A word is "mastered" when all 4 modes are mastered</p>
             {pieData.length > 0 ? (
               <>
-                <ResponsiveContainer width="100%" height={180}>
+                <ResponsiveContainer width="100%" height={160}>
                   <PieChart>
-                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={50} outerRadius={80} paddingAngle={3} dataKey="value">
+                    <Pie data={pieData} cx="50%" cy="50%" innerRadius={45} outerRadius={70} paddingAngle={3} dataKey="value">
                       {pieData.map((entry, i) => <Cell key={i} fill={entry.color} />)}
                     </Pie>
                     <Tooltip formatter={(v, n) => [v, n]} />
@@ -90,7 +103,6 @@ export default function ProgressPage() {
             )}
           </div>
 
-          {/* Bar chart */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6">
             <h3 className="font-semibold text-gray-900 dark:text-white mb-4">Activity (7 days)</h3>
             {last7.some(d => d.count > 0) ? (
@@ -113,28 +125,38 @@ export default function ProgressPage() {
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden">
           <div className="px-6 py-4 border-b border-gray-100 dark:border-gray-700">
             <h3 className="font-semibold text-gray-900 dark:text-white">All Words</h3>
+            {/* Mode legend */}
+            <div className="flex gap-4 mt-2">
+              {ALL_MODES.map(m => (
+                <span key={m} className="text-xs text-gray-400 flex items-center gap-1">
+                  <span>{MODE_ICONS[m]}</span> {MODE_LABELS[m]}
+                </span>
+              ))}
+            </div>
           </div>
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
-              <thead className="bg-gray-50 dark:bg-gray-750">
+              <thead className="bg-gray-50 dark:bg-gray-700">
                 <tr>
                   <th className="px-4 py-3 text-left text-gray-500 dark:text-gray-400 font-medium">Word</th>
                   <th className="px-4 py-3 text-left text-gray-500 dark:text-gray-400 font-medium">Translation</th>
-                  <th className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 font-medium">Status</th>
-                  <th className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 font-medium">Correct</th>
-                  <th className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 font-medium">Wrong</th>
+                  <th className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 font-medium">
+                    {ALL_MODES.map(m => <span key={m} className="mx-1">{MODE_ICONS[m]}</span>)}
+                  </th>
+                  <th className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 font-medium">✓</th>
+                  <th className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 font-medium">✗</th>
                 </tr>
               </thead>
               <tbody>
                 {words.map(w => (
-                  <tr key={w.word_id} className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors">
+                  <tr key={w.word_id} className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{w.source_word}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{w.target_word}</td>
-                    <td className="px-4 py-3 text-center">
-                      <StatusBadge word={w} />
+                    <td className="px-4 py-3">
+                      <ModeBadges word={w} />
                     </td>
-                    <td className="px-4 py-3 text-center text-green-600 dark:text-green-400 font-medium">{w.correct_count}</td>
-                    <td className="px-4 py-3 text-center text-red-500 dark:text-red-400 font-medium">{w.incorrect_count}</td>
+                    <td className="px-4 py-3 text-center text-green-600 dark:text-green-400 font-medium">{w.total_correct || '—'}</td>
+                    <td className="px-4 py-3 text-center text-red-500 dark:text-red-400 font-medium">{w.total_incorrect || '—'}</td>
                   </tr>
                 ))}
               </tbody>
@@ -142,6 +164,34 @@ export default function ProgressPage() {
           </div>
         </div>
       </div>
+    </div>
+  )
+}
+
+function ModeBadges({ word }: { word: WordProgressDetail }) {
+  if (word.modes.length === 0) {
+    return <span className="text-xs text-gray-400 dark:text-gray-500 px-2">New</span>
+  }
+  return (
+    <div className="flex justify-center gap-1.5">
+      {ALL_MODES.map(mode => {
+        const m = word.modes.find(mp => mp.mode === mode)
+        if (!m) return (
+          <span key={mode} className="text-base opacity-15" title={`${MODE_LABELS[mode]}: not started`}>
+            {MODE_ICONS[mode]}
+          </span>
+        )
+        if (m.mastered) return (
+          <span key={mode} className="text-base" title={`${MODE_LABELS[mode]}: mastered ✓`}>
+            {MODE_ICONS[mode]}
+          </span>
+        )
+        return (
+          <span key={mode} className="text-base opacity-40" title={`${MODE_LABELS[mode]}: ${m.repetitions} reps`}>
+            {MODE_ICONS[mode]}
+          </span>
+        )
+      })}
     </div>
   )
 }
@@ -155,14 +205,6 @@ function StatCard({ label, value, color = 'text-gray-900 dark:text-white' }: {
       <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">{label}</div>
     </div>
   )
-}
-
-function StatusBadge({ word }: { word: WordProgressDetail }) {
-  if (word.mastered)
-    return <span className="px-2 py-0.5 rounded-full text-xs bg-green-100 dark:bg-green-950 text-green-700 dark:text-green-300 font-medium">Mastered</span>
-  if (word.repetitions > 0)
-    return <span className="px-2 py-0.5 rounded-full text-xs bg-violet-100 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-medium">Learning</span>
-  return <span className="px-2 py-0.5 rounded-full text-xs bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 font-medium">New</span>
 }
 
 function getLast7Days(heatmap: HeatmapEntry[]) {

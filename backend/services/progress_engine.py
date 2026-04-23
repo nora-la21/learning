@@ -5,16 +5,16 @@ from database import get_db
 def update_word_progress(word_id: int, correct: bool, time_ms: int, mode: str) -> None:
     conn = get_db()
     row = conn.execute(
-        "SELECT * FROM word_progress WHERE word_id = ?", (word_id,)
+        "SELECT * FROM word_progress WHERE word_id = ? AND mode = ?", (word_id, mode)
     ).fetchone()
 
     if row is None:
         conn.execute(
-            "INSERT INTO word_progress (word_id) VALUES (?)", (word_id,)
+            "INSERT INTO word_progress (word_id, mode) VALUES (?, ?)", (word_id, mode)
         )
         conn.commit()
         row = conn.execute(
-            "SELECT * FROM word_progress WHERE word_id = ?", (word_id,)
+            "SELECT * FROM word_progress WHERE word_id = ? AND mode = ?", (word_id, mode)
         ).fetchone()
 
     reps = row["repetitions"]
@@ -30,9 +30,6 @@ def update_word_progress(word_id: int, correct: bool, time_ms: int, mode: str) -
     )
     now_str = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
-    correct_delta = 1 if correct else 0
-    incorrect_delta = 0 if correct else 1
-
     conn.execute(
         """
         UPDATE word_progress SET
@@ -44,10 +41,10 @@ def update_word_progress(word_id: int, correct: bool, time_ms: int, mode: str) -
             incorrect_count = incorrect_count + ?,
             last_seen_at = ?,
             mastered = ?
-        WHERE word_id = ?
+        WHERE word_id = ? AND mode = ?
         """,
         (new_reps, new_ef, new_interval, next_review,
-         correct_delta, incorrect_delta, now_str, mastered, word_id),
+         1 if correct else 0, 0 if correct else 1, now_str, mastered, word_id, mode),
     )
     conn.execute(
         "INSERT INTO answer_events (word_id, mode, correct, time_ms) VALUES (?, ?, ?, ?)",

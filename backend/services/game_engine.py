@@ -58,29 +58,39 @@ def create_session(list_id: int, mode: str, session_size: int) -> GameSession:
         conn.close()
         raise ValueError("Word list not found")
 
-    all_words = conn.execute(
-        "SELECT w.id, wp.repetitions, wp.next_review_at, wp.mastered, wp.manually_excluded "
-        "FROM words w "
-        "LEFT JOIN word_progress wp ON wp.word_id = w.id "
-        "WHERE w.list_id = ?",
-        (list_id,),
-    ).fetchall()
-    conn.close()
-
     now_str = _now_str()
     weighted: list[tuple[int, float]] = []
-    for row in all_words:
-        if row["manually_excluded"]:
-            continue
-        if row["repetitions"] is None:
-            w = 3.0
-        elif row["mastered"]:
-            w = 0.1
-        elif row["next_review_at"] and row["next_review_at"] <= now_str:
-            w = 2.0
-        else:
-            w = 0.5
-        weighted.append((row["id"], w))
+
+    if mode == "all_in_one":
+        all_words = conn.execute(
+            "SELECT w.id, "
+            "(SELECT COUNT(*) FROM word_progress wp WHERE wp.word_id = w.id AND wp.mastered = 1) as modes_mastered "
+            "FROM words w WHERE w.list_id = ? AND w.manually_excluded = 0",
+            (list_id,),
+        ).fetchall()
+        conn.close()
+        for row in all_words:
+            w = 0.1 if row["modes_mastered"] >= 4 else 1.0
+            weighted.append((row["id"], w))
+    else:
+        all_words = conn.execute(
+            "SELECT w.id, wp.repetitions, wp.next_review_at, wp.mastered "
+            "FROM words w "
+            "LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? "
+            "WHERE w.list_id = ? AND w.manually_excluded = 0",
+            (mode, list_id),
+        ).fetchall()
+        conn.close()
+        for row in all_words:
+            if row["repetitions"] is None:
+                w = 3.0
+            elif row["mastered"]:
+                w = 0.1
+            elif row["next_review_at"] and row["next_review_at"] <= now_str:
+                w = 2.0
+            else:
+                w = 0.5
+            weighted.append((row["id"], w))
 
     if len(weighted) < 4:
         raise ValueError("Need at least 4 words to start a session")
