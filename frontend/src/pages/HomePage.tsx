@@ -197,20 +197,20 @@ function MiniDonut({ mastered, seen, total }: { mastered: number; seen: number; 
   )
 }
 
-// espeak-ng voices for Dutch (built-in variants, no mbrola needed)
+// Microsoft Edge Neural voices for Dutch
 const NL_VOICES = [
-  { name: 'nl',     label: 'Standard', icon: '♂' },
-  { name: 'nl+m3',  label: 'Deep',     icon: '♂' },
-  { name: 'nl+f3',  label: 'Female',   icon: '♀' },
+  { name: 'nl-NL-ColetteNeural', label: 'Colette',   icon: '♀' },
+  { name: 'nl-NL-MaartenNeural', label: 'Maarten',   icon: '♂' },
+  { name: 'nl-BE-DenaNeural',    label: 'Dena (BE)', icon: '♀' },
+  { name: 'nl-BE-ArnaudNeural',  label: 'Arnaud (BE)', icon: '♂' },
 ]
 
 
 function VoicePicker() {
   const [selected, setSelected] = useState(() => {
     const stored = localStorage.getItem('preferred_voice_nl') ?? ''
-    // Clear stale edge-tts neural names and old mbrola names
-    const valid = new Set(['nl', 'nl+m3', 'nl+f3', ''])
-    if (!valid.has(stored)) { localStorage.removeItem('preferred_voice_nl'); return '' }
+    // Clear stale espeak voice names
+    if (stored && !stored.includes('Neural')) { localStorage.removeItem('preferred_voice_nl'); return '' }
     return stored
   })
   const { speak } = useSpeech()
