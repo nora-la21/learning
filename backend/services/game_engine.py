@@ -58,12 +58,10 @@ def create_session(list_id: int, mode: str, session_size: int) -> GameSession:
         conn.close()
         raise ValueError("Word list not found")
 
-    now_str = _now_str()
-    weighted: list[tuple[int, float]] = []
-
     if mode == "all_in_one":
         all_words = conn.execute(
-            "SELECT w.id, COUNT(wp.id) as mode_count, "
+            "SELECT w.id, "
+            "COALESCE(SUM(wp.correct_count + wp.incorrect_count), 0) as times_seen, "
             "SUM(CASE WHEN wp.mastered = 1 THEN 1 ELSE 0 END) as modes_mastered "
             "FROM words w "
             "LEFT JOIN word_progress wp ON wp.word_id = w.id "
@@ -72,48 +70,39 @@ def create_session(list_id: int, mode: str, session_size: int) -> GameSession:
             (list_id,),
         ).fetchall()
         conn.close()
+        buckets: dict[tuple, list] = {}
         for row in all_words:
-            if row["modes_mastered"] >= 4:
-                w = 0.1   # fully mastered
-            elif row["mode_count"] == 0:
-                w = 3.0   # never seen in any mode yet
-            else:
-                w = 1.0   # in progress
-            weighted.append((row["id"], w))
+            key = (1 if row["modes_mastered"] >= 4 else 0, row["times_seen"])
+            buckets.setdefault(key, []).append(row["id"])
     else:
         all_words = conn.execute(
-            "SELECT w.id, wp.repetitions, wp.next_review_at, wp.mastered "
+            "SELECT w.id, "
+            "COALESCE(wp.correct_count + wp.incorrect_count, 0) as times_seen, "
+            "COALESCE(wp.mastered, 0) as mastered "
             "FROM words w "
             "LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? "
             "WHERE w.list_id = ? AND w.manually_excluded = 0",
             (mode, list_id),
         ).fetchall()
         conn.close()
+        buckets = {}
         for row in all_words:
-            if row["repetitions"] is None:
-                w = 3.0
-            elif row["mastered"]:
-                w = 0.1
-            elif row["next_review_at"] and row["next_review_at"] <= now_str:
-                w = 2.0
-            else:
-                w = 0.5
-            weighted.append((row["id"], w))
+            key = (row["mastered"], row["times_seen"])
+            buckets.setdefault(key, []).append(row["id"])
 
-    if len(weighted) < 4:
+    # Sort buckets: mastered=0 before mastered=1, fewer attempts first within each
+    pool: list[int] = []
+    for key in sorted(buckets.keys()):
+        group = buckets[key]
+        random.shuffle(group)
+        pool.extend(group)
+
+    if len(pool) < 4:
         raise ValueError("Need at least 4 words to start a session")
 
-    size = min(session_size, len(weighted))
-
-    # Bucket by priority so every word gets a fair chance over time.
-    # High priority: new (w=3.0) or due (w=2.0). Low priority: everything else.
-    priority = [wid for wid, w in weighted if w >= 2.0]
-    rest     = [wid for wid, w in weighted if w < 2.0]
-    random.shuffle(priority)
-    random.shuffle(rest)
-    pool = priority + rest
+    size = min(session_size, len(pool))
     unique = pool[:size]
-    random.shuffle(unique)  # don't always start with priority words
+    random.shuffle(unique)
 
     all_modes = ALL_IN_ONE_SEQUENCE if mode == "all_in_one" else [mode]
 
