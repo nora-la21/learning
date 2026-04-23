@@ -172,6 +172,23 @@ export default function HomePage() {
   )
 }
 
+// Known Dutch voice names → gender icon. Matched case-insensitively on substrings.
+const FEMALE_PATTERNS = ['elen', 'ellen', 'hanna', 'fenna', 'lotte', 'anna', 'femke', 'google']
+const MALE_PATTERNS   = ['xander', 'frank', 'ruben', 'david', 'thomas']
+
+function voiceGenderIcon(name: string): string {
+  const lower = name.toLowerCase()
+  if (FEMALE_PATTERNS.some(p => lower.includes(p))) return '♀'
+  if (MALE_PATTERNS.some(p => lower.includes(p)))   return '♂'
+  return ''
+}
+
+function voiceLabel(name: string): string {
+  // Strip long OS prefixes like "Microsoft Frank Online (Natural) - Dutch (Netherlands)"
+  // Keep the first meaningful word(s) before " Online", " Desktop", or " -"
+  return name.replace(/\s+(Online|Desktop|Natural).*$/i, '').replace(/\s+-\s+.*$/, '').trim()
+}
+
 function VoicePicker() {
   const [voices, setVoices] = useState<SpeechSynthesisVoice[]>([])
   const [selected, setSelected] = useState<string>(() =>
@@ -210,19 +227,25 @@ function VoicePicker() {
         </button>
       </div>
       <div className="flex flex-wrap gap-2">
-        {voices.map(v => (
-          <button
-            key={v.name}
-            onClick={() => select(v.name)}
-            className={`px-3 py-1.5 text-sm rounded-lg border transition ${
-              selected === v.name
-                ? 'border-violet-500 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-medium'
-                : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950'
-            }`}
-          >
-            {v.name}
-          </button>
-        ))}
+        {voices.map(v => {
+          const icon = voiceGenderIcon(v.name)
+          const label = voiceLabel(v.name)
+          return (
+            <button
+              key={v.name}
+              onClick={() => select(v.name)}
+              title={v.name}
+              className={`px-3 py-1.5 text-sm rounded-lg border transition flex items-center gap-1.5 ${
+                selected === v.name
+                  ? 'border-violet-500 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-medium'
+                  : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950'
+              }`}
+            >
+              {icon && <span className="text-base leading-none">{icon}</span>}
+              {label}
+            </button>
+          )
+        })}
       </div>
     </div>
   )
