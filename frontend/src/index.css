@@ -1,5 +1,8 @@
 @import "tailwindcss";
 
+/* Use class-based dark mode so dark: variants reliably win over hover: variants */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @layer base {
   :root {
     color-scheme: light dark;
