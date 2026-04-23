@@ -90,8 +90,10 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
     try {
       const q = await api.nextQuestion(sid)
       setQuestion(q)
-      // Start fetching audio immediately so it's ready when the component speaks
+      // Start fetching audio for every word that will be spoken this question
       preload(q.prompt, q.source_lang)
+      const optionLang = q.mode === 'reverse_mc' ? q.source_lang : q.target_lang
+      q.options?.forEach(opt => preload(opt, optionLang))
     } catch {
       setFinished(true)
     }
