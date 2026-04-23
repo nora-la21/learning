@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import os
 import ssl
@@ -51,13 +52,25 @@ async def tts(
                 headers={"Cache-Control": "public, max-age=31536000"},
             )
 
-    try:
-        communicate = edge_tts.Communicate(text, voice, rate="-10%")
-        await communicate.save(cache_path)
-    except Exception as e:
-        if os.path.exists(cache_path):
-            os.remove(cache_path)
-        raise HTTPException(status_code=502, detail=f"TTS error: {e}")
+    last_error: Exception | None = None
+    for attempt in range(3):
+        if attempt > 0:
+            await asyncio.sleep(attempt)  # 1s, then 2s between retries
+        tmp_path = cache_path + f".tmp{attempt}"
+        try:
+            communicate = edge_tts.Communicate(text, voice, rate="-10%")
+            await communicate.save(tmp_path)
+            if os.path.getsize(tmp_path) > 0:
+                os.replace(tmp_path, cache_path)
+                break
+            os.remove(tmp_path)
+            last_error = RuntimeError("empty response from TTS")
+        except Exception as e:
+            last_error = e
+            if os.path.exists(tmp_path):
+                os.remove(tmp_path)
+    else:
+        raise HTTPException(status_code=502, detail=f"TTS error after retries: {last_error}")
 
     with open(cache_path, "rb") as f:
         return Response(

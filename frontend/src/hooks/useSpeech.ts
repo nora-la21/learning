@@ -85,15 +85,20 @@ export function useSpeech() {
 
     const audio = new Audio(url)
     currentAudio = audio
+    let failTimer: ReturnType<typeof setTimeout> | null = null
     audio.play().catch(() => {
+      if (failTimer) { clearTimeout(failTimer); failTimer = null }
       if (currentAudio === audio) currentAudio = null
       ttsAvailable = false
       speakWithWebSpeech(text, lang, rate)
     })
     audio.addEventListener('ended', () => {
+      if (failTimer) { clearTimeout(failTimer); failTimer = null }
       if (currentAudio === audio) currentAudio = null
-      ttsAvailable = true  // confirmed working
+      ttsAvailable = true
     })
+    // Reset after 3 minutes so transient failures don't permanently disable TTS
+    failTimer = setTimeout(() => { ttsAvailable = null }, 3 * 60 * 1000)
   }, [])
 
   const cancel = useCallback(() => {
