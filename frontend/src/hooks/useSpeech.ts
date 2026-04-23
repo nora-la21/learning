@@ -21,8 +21,9 @@ const DEFAULT_BROWSER_VOICE: Record<string, string> = {
 // Module-level shared state
 let currentAudio: HTMLAudioElement | null = null
 let pendingVoicesHandler: (() => void) | null = null
-// null = not yet checked, true/false = result cached after first attempt
-let ttsAvailable: boolean | null = null
+// Count consecutive backend failures; bypass backend only after 3 in a row
+let consecutiveFailures = 0
+let bypassUntil = 0  // timestamp — bypass backend until this time
 
 function speakWithWebSpeech(text: string, lang: string, rate: number) {
   if (!window.speechSynthesis) return
@@ -73,8 +74,8 @@ export function useSpeech() {
       currentAudio = null
     }
 
-    // Skip TTS endpoint if we already know it's unavailable
-    if (ttsAvailable === false) {
+    // Bypass backend only during a short cooldown after repeated failures
+    if (Date.now() < bypassUntil) {
       speakWithWebSpeech(text, lang, rate)
       return
     }
@@ -85,20 +86,20 @@ export function useSpeech() {
 
     const audio = new Audio(url)
     currentAudio = audio
-    let failTimer: ReturnType<typeof setTimeout> | null = null
     audio.play().catch(() => {
-      if (failTimer) { clearTimeout(failTimer); failTimer = null }
       if (currentAudio === audio) currentAudio = null
-      ttsAvailable = false
+      consecutiveFailures++
+      if (consecutiveFailures >= 3) {
+        // Back off for 30 seconds then try the neural voice again
+        bypassUntil = Date.now() + 30_000
+        consecutiveFailures = 0
+      }
       speakWithWebSpeech(text, lang, rate)
     })
     audio.addEventListener('ended', () => {
-      if (failTimer) { clearTimeout(failTimer); failTimer = null }
       if (currentAudio === audio) currentAudio = null
-      ttsAvailable = true
+      consecutiveFailures = 0  // reset on success
     })
-    // Reset after 3 minutes so transient failures don't permanently disable TTS
-    failTimer = setTimeout(() => { ttsAvailable = null }, 3 * 60 * 1000)
   }, [])
 
   const cancel = useCallback(() => {
