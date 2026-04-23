@@ -223,47 +223,30 @@ function voiceLabel(name: string): string {
 
 function VoicePicker() {
   const [nlVoices, setNlVoices] = useState<SpeechSynthesisVoice[]>([])
-  const [enVoices, setEnVoices] = useState<SpeechSynthesisVoice[]>([])
   const [selectedNl, setSelectedNl] = useState(() => localStorage.getItem('preferred_voice_nl') ?? '')
-  const [selectedEn, setSelectedEn] = useState(() => localStorage.getItem('preferred_voice_en') ?? '')
   const { speak } = useSpeech()
 
   useEffect(() => {
     const load = () => {
       const all = window.speechSynthesis?.getVoices() ?? []
       setNlVoices(all.filter(v => v.lang.toLowerCase().startsWith('nl')))
-      setEnVoices(all.filter(v => v.lang.toLowerCase().startsWith('en')))
     }
     load()
     window.speechSynthesis?.addEventListener('voiceschanged', load)
     return () => window.speechSynthesis?.removeEventListener('voiceschanged', load)
   }, [])
 
-  const showNl = nlVoices.length >= 2
-  const showEn = enVoices.length >= 2
-  if (!showNl && !showEn) return null
+  if (nlVoices.length < 2) return null
 
   return (
-    <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm space-y-4">
-      {showNl && (
-        <VoiceSection
-          label="🇳🇱 Dutch voice"
-          voices={nlVoices}
-          selected={selectedNl}
-          onSelect={name => { setSelectedNl(name); localStorage.setItem('preferred_voice_nl', name) }}
-          onPreview={() => speak('Goedemorgen, hoe gaat het met je?', 'nl')}
-        />
-      )}
-      {showNl && showEn && <hr className="border-gray-100 dark:border-gray-700" />}
-      {showEn && (
-        <VoiceSection
-          label="🇬🇧 English voice"
-          voices={enVoices}
-          selected={selectedEn}
-          onSelect={name => { setSelectedEn(name); localStorage.setItem('preferred_voice_en', name) }}
-          onPreview={() => speak('Good morning, how are you today?', 'en')}
-        />
-      )}
+    <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+      <VoiceSection
+        label="🇳🇱 Dutch voice"
+        voices={nlVoices}
+        selected={selectedNl}
+        onSelect={name => { setSelectedNl(name); localStorage.setItem('preferred_voice_nl', name) }}
+        onPreview={() => speak('Goedemorgen, hoe gaat het met je?', 'nl')}
+      />
     </div>
   )
 }

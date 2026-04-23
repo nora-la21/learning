@@ -14,6 +14,11 @@ function toBCP47(lang: string): string {
   return LANG_MAP[lang.toLowerCase()] ?? lang
 }
 
+// Hardcoded defaults when the user hasn't picked a voice
+const DEFAULT_VOICE: Record<string, string> = {
+  en: 'Samantha',
+}
+
 // Module-level so every useSpeech instance shares the same pending state
 let pendingVoicesHandler: (() => void) | null = null
 
@@ -37,6 +42,8 @@ export function useSpeech() {
 
       const voices = window.speechSynthesis.getVoices()
       const preferredName = localStorage.getItem(`preferred_voice_${langPrefix}`)
+        ?? DEFAULT_VOICE[langPrefix]
+        ?? null
       const voice =
         (preferredName ? voices.find(v => v.name === preferredName && v.lang.startsWith(langPrefix)) : null) ??
         voices.find(v => v.lang === bcp) ??
