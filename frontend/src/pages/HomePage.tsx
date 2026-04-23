@@ -197,59 +197,22 @@ function MiniDonut({ mastered, seen, total }: { mastered: number; seen: number; 
   )
 }
 
-// Microsoft Edge Neural voices for Dutch
+// espeak-ng voices for Dutch
 const NL_VOICES = [
-  { name: 'nl-NL-ColetteNeural', label: 'Colette',       icon: '♀' },
-  { name: 'nl-NL-MaartenNeural', label: 'Maarten',       icon: '♂' },
-  { name: 'nl-BE-DenaNeural',    label: 'Dena (BE)',     icon: '♀' },
-  { name: 'nl-BE-ArnaudNeural',  label: 'Arnaud (BE)',   icon: '♂' },
+  { name: 'nl',      label: 'Standard', icon: '♂' },
+  { name: 'mb-nl2',  label: 'Classic',  icon: '♂' },
+  { name: 'mb-nl3',  label: 'Classic',  icon: '♀' },
 ]
 
-// Browser voice name → gender icon (fallback mode)
-const FEMALE_PATTERNS = [
-  'female', 'elen', 'ellen', 'hanna', 'fenna', 'lotte', 'anna', 'femke',
-  'zira', 'hazel', 'susan', 'kate', 'emma', 'samantha', 'karen', 'victoria',
-  'moira', 'fiona', 'claire', 'emily', 'linda', 'helena', 'heather',
-  'aria', 'jenny', 'michelle', 'leah', 'wendy', 'google',
-]
-const MALE_PATTERNS = [
-  'male', 'xander', 'frank', 'ruben', 'thomas',
-  'david', 'daniel', 'george', 'mark', 'oliver', 'arthur', 'liam',
-  'james', 'ryan', 'lee', 'william', 'charles', 'fred', 'guy', 'richard',
-]
-function browserVoiceIcon(name: string): string {
-  const lower = name.toLowerCase()
-  if (FEMALE_PATTERNS.some(p => lower.includes(p))) return '♀'
-  if (MALE_PATTERNS.some(p => lower.includes(p)))   return '♂'
-  return ''
-}
-function browserVoiceLabel(name: string): string {
-  return name.replace(/\s+(Online|Desktop|Natural).*$/i, '').replace(/\s+-\s+.*$/, '').trim()
-}
 
 function VoicePicker() {
-  const [ttsAvailable, setTtsAvailable] = useState<boolean | null>(null)
-  const [nlVoices, setNlVoices] = useState<SpeechSynthesisVoice[]>([])
-  const [selected, setSelected] = useState(() => localStorage.getItem('preferred_voice_nl') ?? '')
+  const [selected, setSelected] = useState(() => {
+    const stored = localStorage.getItem('preferred_voice_nl') ?? ''
+    // Clear stale edge-tts neural voice names
+    if (stored.includes('Neural')) { localStorage.removeItem('preferred_voice_nl'); return '' }
+    return stored
+  })
   const { speak } = useSpeech()
-
-  useEffect(() => {
-    fetch('/api/tts/available').then(r => r.json()).then(d => setTtsAvailable(!!d.available)).catch(() => setTtsAvailable(false))
-  }, [])
-
-  useEffect(() => {
-    if (ttsAvailable !== false) return
-    const load = () => {
-      const all = window.speechSynthesis?.getVoices() ?? []
-      setNlVoices(all.filter(v => v.lang.toLowerCase().startsWith('nl')))
-    }
-    load()
-    window.speechSynthesis?.addEventListener('voiceschanged', load)
-    return () => window.speechSynthesis?.removeEventListener('voiceschanged', load)
-  }, [ttsAvailable])
-
-  if (ttsAvailable === null) return null
-  if (!ttsAvailable && nlVoices.length < 2) return null
 
   const pick = (name: string) => { setSelected(name); localStorage.setItem('preferred_voice_nl', name) }
 
@@ -263,36 +226,17 @@ function VoicePicker() {
         </button>
       </div>
       <div className="flex flex-wrap gap-2">
-        {ttsAvailable
-          ? NL_VOICES.map(v => (
-              <button key={v.name} onClick={() => pick(v.name)} title={v.name}
-                className={`px-3 py-1.5 text-sm rounded-lg border transition flex items-center gap-1.5 ${
-                  selected === v.name
-                    ? 'border-violet-500 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-medium'
-                    : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950'
-                }`}>
-                <span className="text-base leading-none">{v.icon}</span>{v.label}
-              </button>
-            ))
-          : nlVoices.map(v => {
-              const icon = browserVoiceIcon(v.name)
-              const lbl  = browserVoiceLabel(v.name)
-              return (
-                <button key={v.name} onClick={() => pick(v.name)} title={v.name}
-                  className={`px-3 py-1.5 text-sm rounded-lg border transition flex items-center gap-1.5 ${
-                    selected === v.name
-                      ? 'border-violet-500 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-medium'
-                      : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950'
-                  }`}>
-                  {icon && <span className="text-base leading-none">{icon}</span>}{lbl}
-                </button>
-              )
-            })
-        }
+        {NL_VOICES.map(v => (
+          <button key={v.name} onClick={() => pick(v.name)} title={v.name}
+            className={`px-3 py-1.5 text-sm rounded-lg border transition flex items-center gap-1.5 ${
+              selected === v.name
+                ? 'border-violet-500 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-medium'
+                : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950'
+            }`}>
+            <span className="text-base leading-none">{v.icon}</span>{v.label}
+          </button>
+        ))}
       </div>
-      {ttsAvailable && (
-        <p className="text-xs text-gray-400 mt-2">BE = Belgian Dutch accent</p>
-      )}
     </div>
   )
 }
