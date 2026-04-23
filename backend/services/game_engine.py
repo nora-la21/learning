@@ -266,6 +266,7 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
         "new_mode": new_mode,
         "mode_index": session.current_mode_index,
         "total_modes": len(session.all_modes),
+        "answered_mode": mode,
     }
 
 

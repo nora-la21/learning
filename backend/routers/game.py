@@ -41,9 +41,5 @@ def answer_question(body: GameAnswerRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    # Determine mode from session
-    session = game_engine._sessions.get(body.session_id)
-    mode = session.mode if session else "multiple_choice"
-
-    update_word_progress(body.word_id, result["correct"], body.time_ms, mode)
+    update_word_progress(body.word_id, result["correct"], body.time_ms, result["answered_mode"])
     return GameAnswerResponse(**result)
