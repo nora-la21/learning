@@ -26,6 +26,11 @@ function extractLevel(name: string): string {
   return m ? m[1] : 'Other'
 }
 
+function extractThemeNumber(name: string): number[] {
+  const m = name.match(/(\d+)\.(\d+)/)
+  return m ? [parseInt(m[1]), parseInt(m[2])] : [999, 999]
+}
+
 function groupByLevel(lists: WordList[]): { level: string; lists: WordList[] }[] {
   const map = new Map<string, WordList[]>()
   for (const l of lists) {
@@ -33,7 +38,14 @@ function groupByLevel(lists: WordList[]): { level: string; lists: WordList[] }[]
     if (!map.has(lvl)) map.set(lvl, [])
     map.get(lvl)!.push(l)
   }
-  return Array.from(map.entries()).map(([level, lists]) => ({ level, lists }))
+  return Array.from(map.entries()).map(([level, lists]) => ({
+    level,
+    lists: lists.sort((a, b) => {
+      const [aM, aN] = extractThemeNumber(a.name)
+      const [bM, bN] = extractThemeNumber(b.name)
+      return aM !== bM ? aM - bM : aN - bN
+    }),
+  }))
 }
 
 type Tab = 'builtin' | 'my'
