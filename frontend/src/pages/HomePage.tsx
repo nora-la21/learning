@@ -11,6 +11,8 @@ const FLAG: Record<string, string> = {
 }
 
 const LEVEL_LABELS: Record<string, string> = {
+  'TaalComplete A1': '📚 TaalComplete A1',
+  'TaalComplete A2': '📚 TaalComplete A2',
   A1: 'A1 — Beginner',
   A2: 'A2 — Elementary',
   B1: 'B1 — Intermediate',
@@ -18,6 +20,8 @@ const LEVEL_LABELS: Record<string, string> = {
 }
 
 function extractLevel(name: string): string {
+  if (name.startsWith('📚 TaalComplete A1')) return 'TaalComplete A1'
+  if (name.startsWith('📚 TaalComplete A2')) return 'TaalComplete A2'
   const m = name.match(/\b(A1|A2|B1|B2|C1|C2)\b/)
   return m ? m[1] : 'Other'
 }
