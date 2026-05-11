@@ -20,6 +20,14 @@ export default function LearnPage() {
   const navigate = useNavigate()
   const id = Number(listId)
 
+  // Parse optional ?words=1,2,3 param from URL (set by "Practice selected")
+  const wordIds = (() => {
+    const raw = new URLSearchParams(window.location.search).get('words')
+    if (!raw) return undefined
+    const ids = raw.split(',').map(Number).filter(Boolean)
+    return ids.length > 0 ? ids : undefined
+  })()
+
   if (selectedMode) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
@@ -28,6 +36,7 @@ export default function LearnPage() {
             listId={id}
             mode={selectedMode}
             sessionSize={sessionSize}
+            wordIds={wordIds}
             onBack={() => setSelectedMode(null)}
           />
         </div>

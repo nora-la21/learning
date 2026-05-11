@@ -130,7 +130,7 @@ class GameSession:
 _sessions: dict[str, GameSession] = {}
 
 
-def create_session(list_id: int, mode: str, session_size: int) -> GameSession:
+def create_session(list_id: int, mode: str, session_size: int, word_ids: list[int] | None = None) -> GameSession:
     if mode not in INDIVIDUAL_MODES and mode != "all_in_one":
         raise ValueError(f"Invalid mode: {mode}")
 
@@ -180,6 +180,10 @@ def create_session(list_id: int, mode: str, session_size: int) -> GameSession:
         group = buckets[key]
         random.shuffle(group)
         pool.extend(group)
+
+    if word_ids is not None:
+        allowed = set(word_ids)
+        pool = [w for w in pool if w in allowed]
 
     if len(pool) < 4:
         raise ValueError("Need at least 4 words to start a session")

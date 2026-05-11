@@ -55,11 +55,11 @@ export const api = {
       body: JSON.stringify({ list_name: listName, source_lang: sourceLang, target_lang: targetLang, words, source_file: sourceFile }),
     }),
 
-  startGame: (listId: number, mode: GameMode, sessionSize = 20): Promise<GameStartResponse> =>
+  startGame: (listId: number, mode: GameMode, sessionSize = 20, wordIds?: number[]): Promise<GameStartResponse> =>
     req<GameStartResponse>('/game/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ list_id: listId, mode, session_size: sessionSize }),
+      body: JSON.stringify({ list_id: listId, mode, session_size: sessionSize, word_ids: wordIds ?? null }),
     }),
   nextQuestion: (sessionId: string) => req<GameQuestion>(`/game/next?session_id=${sessionId}`),
   submitAnswer: (sessionId: string, wordId: number, chosen: string, timeMs: number): Promise<GameAnswerResponse> =>

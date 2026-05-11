@@ -153,6 +153,7 @@ export default function HomePage() {
                 lists={group}
                 defaultOpen={i === 0}
                 onPractice={id => navigate(`/learn/${id}`)}
+                onPracticeSelected={(id, wordIds) => navigate(`/learn/${id}?words=${wordIds.join(',')}`)}
                 onStats={id => navigate(`/progress/${id}`)}
               />
             ))}
@@ -165,6 +166,7 @@ export default function HomePage() {
                 list={list}
                 flag={FLAG[list.source_lang] ?? '📖'}
                 onPractice={() => navigate(`/learn/${list.id}`)}
+                onPracticeSelected={(_, wordIds) => navigate(`/learn/${list.id}?words=${wordIds.join(',')}`)}
                 onStats={() => navigate(`/progress/${list.id}`)}
                 onDelete={() => deleteList(list.id)}
               />
@@ -247,12 +249,13 @@ function VoicePicker() {
 }
 
 function LevelGroup({
-  level, lists, defaultOpen, onPractice, onStats,
+  level, lists, defaultOpen, onPractice, onPracticeSelected, onStats,
 }: {
   level: string
   lists: WordList[]
   defaultOpen: boolean
   onPractice: (id: number) => void
+  onPracticeSelected: (id: number, wordIds: number[]) => void
   onStats: (id: number) => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
@@ -284,6 +287,7 @@ function LevelGroup({
               flag={flag}
               compact
               onPractice={() => onPractice(list.id)}
+              onPracticeSelected={wordIds => onPracticeSelected(list.id, wordIds)}
               onStats={() => onStats(list.id)}
             />
           ))}
@@ -294,11 +298,12 @@ function LevelGroup({
 }
 
 function ListCard({
-  list, flag, onPractice, onStats, onDelete, compact = false,
+  list, flag, onPractice, onPracticeSelected, onStats, onDelete, compact = false,
 }: {
   list: WordList
   flag: string
   onPractice: () => void
+  onPracticeSelected: (wordIds: number[]) => void
   onStats: () => void
   onDelete?: () => void
   compact?: boolean
@@ -427,12 +432,20 @@ function ListCard({
                   {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
                 </label>
                 {selected.size > 0 && (
-                  <button
-                    onClick={resetSelected}
-                    className="text-xs px-3 py-1 rounded-lg bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800 transition font-medium"
-                  >
-                    Reset progress ({selected.size})
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => onPracticeSelected(Array.from(selected))}
+                      className="text-xs px-3 py-1 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition font-medium"
+                    >
+                      ▶ Practice ({selected.size})
+                    </button>
+                    <button
+                      onClick={resetSelected}
+                      className="text-xs px-3 py-1 rounded-lg bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800 transition font-medium"
+                    >
+                      Reset progress
+                    </button>
+                  </div>
                 )}
               </div>
               {/* Word table */}

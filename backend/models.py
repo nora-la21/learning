@@ -71,6 +71,7 @@ class GameStartRequest(BaseModel):
     list_id: int
     mode: str
     session_size: int = 20
+    word_ids: Optional[list[int]] = None
 
 
 class GameStartResponse(BaseModel):
