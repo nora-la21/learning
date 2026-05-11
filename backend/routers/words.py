@@ -25,9 +25,10 @@ def get_lists(builtin: Optional[bool] = Query(None)):
            WHERE ww.list_id = wl.id AND ww.manually_excluded = 0) as seen_count,
           (SELECT COUNT(DISTINCT ww2.id)
            FROM words ww2
-           WHERE ww2.list_id = wl.id AND ww2.manually_excluded = 0
-           AND (SELECT COALESCE(SUM(wp2.mastered), 0)
-                FROM word_progress wp2 WHERE wp2.word_id = ww2.id) >= 4) as mastered_count
+           WHERE ww2.list_id = wl.id
+           AND (ww2.manually_excluded = 1
+                OR (SELECT COALESCE(SUM(wp2.mastered), 0)
+                    FROM word_progress wp2 WHERE wp2.word_id = ww2.id) >= 4)) as mastered_count
         FROM word_lists wl
         LEFT JOIN words w ON w.list_id = wl.id
         {where}

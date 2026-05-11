@@ -19,12 +19,14 @@ def get_summary(list_id: int):
 
     mastered = conn.execute(
         "SELECT COUNT(DISTINCT w.id) FROM words w WHERE w.list_id = ? "
-        "AND (SELECT COUNT(*) FROM word_progress wp WHERE wp.word_id = w.id AND wp.mastered = 1) >= ?",
+        "AND (w.manually_excluded = 1 OR "
+        "(SELECT COUNT(*) FROM word_progress wp WHERE wp.word_id = w.id AND wp.mastered = 1) >= ?)",
         (list_id, NUM_MODES),
     ).fetchone()[0]
 
     in_progress = conn.execute(
         "SELECT COUNT(DISTINCT w.id) FROM words w WHERE w.list_id = ? "
+        "AND w.manually_excluded = 0 "
         "AND (SELECT COUNT(*) FROM word_progress wp WHERE wp.word_id = w.id AND wp.repetitions > 0) > 0 "
         "AND (SELECT COUNT(*) FROM word_progress wp WHERE wp.word_id = w.id AND wp.mastered = 1) < ?",
         (list_id, NUM_MODES),
@@ -94,7 +96,7 @@ def get_word_progress(list_id: int):
         ]
         total_correct = sum(m.correct_count for m in modes)
         total_incorrect = sum(m.incorrect_count for m in modes)
-        fully_mastered = len([m for m in modes if m.mastered]) >= NUM_MODES
+        fully_mastered = bool(word["learned"]) or len([m for m in modes if m.mastered]) >= NUM_MODES
         result.append(WordProgressDetail(
             word_id=word["word_id"],
             source_word=word["source_word"],
