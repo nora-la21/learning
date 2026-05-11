@@ -2,6 +2,7 @@ from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from database import get_db
 from models import WordListResponse, WordResponse, WordUpdate, SetLearnedRequest, ResetProgressRequest
+from pydantic import BaseModel
 
 router = APIRouter(prefix="/api", tags=["words"])
 
@@ -108,6 +109,52 @@ def set_word_learned(word_id: int, body: SetLearnedRequest):
     conn.execute("UPDATE words SET manually_excluded = ? WHERE id = ?", (1 if body.learned else 0, word_id))
     conn.commit()
     conn.close()
+
+
+class QuickAddRequest(BaseModel):
+    list_id: int
+    source_word: str
+    target_word: str
+
+
+@router.post("/words/quick-add", response_model=WordResponse)
+def quick_add_word(body: QuickAddRequest):
+    conn = get_db()
+    lst = conn.execute("SELECT id FROM word_lists WHERE id = ?", (body.list_id,)).fetchone()
+    if not lst:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Word list not found")
+    exists = conn.execute(
+        "SELECT id FROM words WHERE list_id = ? AND source_word = ?",
+        (body.list_id, body.source_word),
+    ).fetchone()
+    if exists:
+        word = conn.execute("SELECT *, manually_excluded as learned FROM words WHERE id = ?", (exists["id"],)).fetchone()
+        conn.close()
+        return dict(word)
+    cursor = conn.execute(
+        "INSERT INTO words (list_id, source_word, target_word) VALUES (?, ?, ?)",
+        (body.list_id, body.source_word, body.target_word),
+    )
+    word = conn.execute(
+        "SELECT *, manually_excluded as learned FROM words WHERE id = ?", (cursor.lastrowid,)
+    ).fetchone()
+    conn.commit()
+    conn.close()
+    return dict(word)
+
+
+@router.post("/lists", status_code=201)
+def create_list(name: str, source_lang: str = "nl", target_lang: str = "en"):
+    conn = get_db()
+    cursor = conn.execute(
+        "INSERT INTO word_lists (name, source_lang, target_lang, builtin) VALUES (?, ?, ?, 0)",
+        (name, source_lang, target_lang),
+    )
+    conn.commit()
+    list_id = cursor.lastrowid
+    conn.close()
+    return {"id": list_id, "name": name}
 
 
 @router.post("/words/reset-progress", status_code=204)

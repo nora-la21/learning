@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Dutch Vocabulary Helper</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      width: 280px;
+      background: #1e1b2e;
+      color: #f0eeff;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      padding: 16px;
+    }
+    h1 {
+      font-size: 15px;
+      font-weight: 700;
+      color: #a78bfa;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .status-row {
+      background: #2d2a3e;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+      font-size: 13px;
+    }
+    .status-row .label { color: #888; font-size: 11px; margin-bottom: 3px; }
+    .status-ok  { color: #86efac; }
+    .status-err { color: #fca5a5; }
+    .tip {
+      font-size: 12px;
+      color: #9ca3af;
+      line-height: 1.5;
+      background: #2d2a3e;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+    .tip strong { color: #a78bfa; }
+    .open-app {
+      display: block;
+      width: 100%;
+      padding: 9px;
+      background: #7c3aed;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      text-align: center;
+      text-decoration: none;
+      transition: background 0.15s;
+    }
+    .open-app:hover { background: #6d28d9; }
+  </style>
+</head>
+<body>
+  <h1>🇳🇱 Dutch Vocabulary Helper</h1>
+
+  <div class="status-row">
+    <div class="label">App connection</div>
+    <div id="status-text" class="status-ok">Checking…</div>
+  </div>
+
+  <div class="tip">
+    <strong>How to use:</strong><br>
+    Select any Dutch word, phrase, or sentence on a webpage. A popup will appear with a translation — click <strong>+ Add</strong> to save it to your vocabulary list.
+  </div>
+
+  <a href="http://localhost:8000" target="_blank" class="open-app" id="open-app">Open Vocabulary App ↗</a>
+
+  <script src="popup.js"></script>
+</body>
+</html>

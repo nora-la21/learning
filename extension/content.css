@@ -1,0 +1,95 @@
+#dvh-popup {
+  position: fixed;
+  z-index: 2147483647;
+  background: #1e1b2e;
+  color: #f0eeff;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.45);
+  padding: 14px 16px 12px;
+  min-width: 220px;
+  max-width: 320px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 14px;
+  line-height: 1.4;
+  border: 1px solid rgba(139,92,246,0.4);
+  animation: dvh-fadein 0.12s ease;
+}
+@keyframes dvh-fadein {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+#dvh-popup .dvh-word {
+  font-size: 18px;
+  font-weight: 700;
+  color: #a78bfa;
+  margin-bottom: 4px;
+}
+#dvh-popup .dvh-translation {
+  color: #e2e8f0;
+  margin-bottom: 10px;
+  min-height: 18px;
+}
+#dvh-popup .dvh-translation.dvh-loading {
+  color: #888;
+  font-style: italic;
+}
+#dvh-popup .dvh-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin-bottom: 8px;
+}
+#dvh-popup select {
+  flex: 1;
+  background: #2d2a3e;
+  color: #f0eeff;
+  border: 1px solid #4c1d95;
+  border-radius: 7px;
+  padding: 5px 8px;
+  font-size: 13px;
+  cursor: pointer;
+  outline: none;
+}
+#dvh-popup select:focus { border-color: #7c3aed; }
+#dvh-popup .dvh-btn-add {
+  background: #7c3aed;
+  color: #fff;
+  border: none;
+  border-radius: 7px;
+  padding: 6px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s;
+}
+#dvh-popup .dvh-btn-add:hover { background: #6d28d9; }
+#dvh-popup .dvh-btn-add:disabled { background: #4b3a6b; cursor: default; }
+#dvh-popup .dvh-status {
+  font-size: 12px;
+  text-align: center;
+  height: 16px;
+  color: #86efac;
+}
+#dvh-popup .dvh-status.dvh-err { color: #fca5a5; }
+#dvh-popup .dvh-close {
+  position: absolute;
+  top: 8px; right: 10px;
+  background: none;
+  border: none;
+  color: #888;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+}
+#dvh-popup .dvh-close:hover { color: #ccc; }
+#dvh-popup .dvh-new-list {
+  font-size: 12px;
+  color: #a78bfa;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}

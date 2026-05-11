@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Dutch Vocabulary Helper",
+  "version": "1.0",
+  "description": "Select a Dutch word on any page, get a translation, add to your vocabulary app.",
+  "permissions": ["storage", "activeTab"],
+  "host_permissions": ["http://localhost:8000/*"],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Dutch Vocabulary Helper"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "css": ["content.css"]
+    }
+  ]
+}
