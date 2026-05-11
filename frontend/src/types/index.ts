@@ -100,6 +100,7 @@ export interface WordProgressDetail {
   total_correct: number
   total_incorrect: number
   fully_mastered: boolean
+  learned: boolean
 }
 
 export interface HeatmapEntry {

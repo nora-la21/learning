@@ -145,6 +145,7 @@ class WordProgressDetail(BaseModel):
     total_correct: int
     total_incorrect: int
     fully_mastered: bool
+    learned: bool = False
 
 
 class HeatmapEntry(BaseModel):

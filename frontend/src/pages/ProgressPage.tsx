@@ -29,6 +29,11 @@ export default function ProgressPage() {
   const [heatmap, setHeatmap] = useState<HeatmapEntry[]>([])
   const [loading, setLoading] = useState(true)
 
+  const toggleLearned = async (wordId: number, current: boolean) => {
+    await api.setWordLearned(wordId, !current)
+    setWords(ws => ws.map(w => w.word_id === wordId ? { ...w, learned: !current } : w))
+  }
+
   useEffect(() => {
     Promise.all([
       api.getProgressSummary(id),
@@ -145,11 +150,12 @@ export default function ProgressPage() {
                   </th>
                   <th className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 font-medium">✓</th>
                   <th className="px-4 py-3 text-center text-gray-500 dark:text-gray-400 font-medium">✗</th>
+                  <th className="px-4 py-3"></th>
                 </tr>
               </thead>
               <tbody>
                 {words.map(w => (
-                  <tr key={w.word_id} className="border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors">
+                  <tr key={w.word_id} className={`border-t border-gray-100 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors ${w.learned ? 'opacity-50' : ''}`}>
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{w.source_word}</td>
                     <td className="px-4 py-3 text-gray-600 dark:text-gray-300">{w.target_word}</td>
                     <td className="px-4 py-3">
@@ -157,6 +163,17 @@ export default function ProgressPage() {
                     </td>
                     <td className="px-4 py-3 text-center text-green-600 dark:text-green-400 font-medium">{w.total_correct || '—'}</td>
                     <td className="px-4 py-3 text-center text-red-500 dark:text-red-400 font-medium">{w.total_incorrect || '—'}</td>
+                    <td className="px-4 py-3 text-right">
+                      <button
+                        onClick={() => toggleLearned(w.word_id, w.learned)}
+                        className={`text-xs px-2 py-1 rounded-lg border transition whitespace-nowrap ${
+                          w.learned
+                            ? 'border-green-500 text-green-500 hover:bg-green-50 dark:hover:bg-green-900'
+                            : 'border-gray-300 dark:border-gray-600 text-gray-400 hover:border-green-500 hover:text-green-500'
+                        }`}
+                        title={w.learned ? 'Mark as not learned' : 'Skip this word in games'}
+                      >{w.learned ? '✓ Known' : 'Already know'}</button>
+                    </td>
                   </tr>
                 ))}
               </tbody>

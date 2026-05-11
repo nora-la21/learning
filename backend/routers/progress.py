@@ -71,7 +71,7 @@ def get_summary(list_id: int):
 def get_word_progress(list_id: int):
     conn = get_db()
     words = conn.execute(
-        "SELECT id as word_id, source_word, target_word FROM words WHERE list_id = ? ORDER BY source_word",
+        "SELECT id as word_id, source_word, target_word, manually_excluded as learned FROM words WHERE list_id = ? ORDER BY source_word",
         (list_id,),
     ).fetchall()
 
@@ -103,6 +103,7 @@ def get_word_progress(list_id: int):
             total_correct=total_correct,
             total_incorrect=total_incorrect,
             fully_mastered=fully_mastered,
+            learned=bool(word["learned"]),
         ))
 
     conn.close()
