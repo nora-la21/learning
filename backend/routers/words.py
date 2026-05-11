@@ -31,7 +31,7 @@ def get_lists(builtin: Optional[bool] = Query(None)):
         LEFT JOIN words w ON w.list_id = wl.id
         {where}
         GROUP BY wl.id
-        ORDER BY wl.builtin DESC, wl.created_at DESC
+        ORDER BY wl.builtin DESC, wl.name ASC
     """).fetchall()
     conn.close()
     return [dict(r) for r in rows]
