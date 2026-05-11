@@ -302,7 +302,7 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
     else:  # reverse_mc, reverse_type_it
         correct_answer = word["source_word"]
 
-    correct = chosen.strip().lower() == correct_answer.strip().lower()
+    correct = _normalize(chosen) == _normalize(correct_answer)
     almost = not correct and _is_almost(chosen, correct_answer)
 
     # Pop from front of queue
@@ -374,9 +374,29 @@ def _generate_distractors(correct: str, pool: list[str], n: int = 3) -> list[str
     return (similar + other)[:n]
 
 
+_NUMBER_WORDS: dict[str, str] = {
+    "one thousand": "1000",
+    "one hundred": "100",
+    "zero": "0", "one": "1", "two": "2", "three": "3", "four": "4",
+    "five": "5", "six": "6", "seven": "7", "eight": "8", "nine": "9",
+    "ten": "10", "eleven": "11", "twelve": "12", "thirteen": "13",
+    "fourteen": "14", "fifteen": "15", "sixteen": "16", "seventeen": "17",
+    "eighteen": "18", "nineteen": "19", "twenty": "20", "thirty": "30",
+    "forty": "40", "fifty": "50", "sixty": "60", "seventy": "70",
+    "eighty": "80", "ninety": "90", "hundred": "100", "thousand": "1000",
+}
+
+
+def _normalize(text: str) -> str:
+    """Normalize for comparison: lowercase, strip commas/periods, map number words to digits."""
+    t = re.sub(r"[,\.]+", "", text.strip().lower()).strip()
+    t = re.sub(r"\s+", " ", t)
+    return _NUMBER_WORDS.get(t, t)
+
+
 def _is_almost(chosen: str, correct: str) -> bool:
-    a = chosen.strip().lower()
-    b = correct.strip().lower()
+    a = _normalize(chosen)
+    b = _normalize(correct)
     if a == b or not a or not b:
         return False
     if abs(len(a) - len(b)) > 2:
