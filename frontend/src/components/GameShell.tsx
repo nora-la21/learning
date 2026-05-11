@@ -278,10 +278,9 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
           {!feedback.show && !answering && (
             <button
               onClick={handleSkip}
-              className="absolute top-3 right-3 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition px-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
-              title="Skip — I already know this word"
+              className="mt-3 w-full py-2 rounded-xl text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 border border-dashed border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition"
             >
-              ✓ already know
+              ✓ I already know this word
             </button>
           )}
           {waitingForNext && (

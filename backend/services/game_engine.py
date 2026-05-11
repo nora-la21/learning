@@ -338,7 +338,9 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
         mode_complete = True
 
         if not session.is_complete:
-            session.word_queue = session.base_word_ids[:]
+            shuffled = session.base_word_ids[:]
+            random.shuffle(shuffled)
+            session.word_queue = shuffled
             new_mode = session.mode
 
     conn.close()
@@ -379,7 +381,9 @@ def skip_word(session_id: str, word_id: int) -> dict:
     if not session.word_queue:
         mode_complete = True
         if not session.is_complete:
-            session.word_queue = session.base_word_ids[:]
+            shuffled = session.base_word_ids[:]
+            random.shuffle(shuffled)
+            session.word_queue = shuffled
             new_mode = session.mode
 
     return {
