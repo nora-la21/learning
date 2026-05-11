@@ -94,6 +94,7 @@ class GameQuestion(BaseModel):
     is_retry: bool = False
     mode_index: int = 0
     total_modes: int = 1
+    image_keyword: Optional[str] = None
 
 
 class GameAnswerRequest(BaseModel):

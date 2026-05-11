@@ -57,6 +57,7 @@ export interface GameQuestion {
   is_retry: boolean
   mode_index: number
   total_modes: number
+  image_keyword?: string | null
 }
 
 export interface GameAnswerResponse {

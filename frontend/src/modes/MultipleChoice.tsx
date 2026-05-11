@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { GameQuestion } from '../types'
 import { useSpeech } from '../hooks/useSpeech'
 import type { AnswerFeedback } from '../components/GameShell'
+import WordImage from '../components/WordImage'
 
 interface Props {
   question: GameQuestion
@@ -70,6 +71,9 @@ export default function MultipleChoice({ question, onAnswer, feedback, showSourc
             >🔊</button>
           )}
         </div>
+        {question.image_keyword && (
+          <WordImage keyword={question.image_keyword} wordId={question.word_id} />
+        )}
       </div>
       <div className="grid grid-cols-2 gap-3">
         {[0, 1, 2, 3].map(i => {

@@ -1,8 +1,92 @@
+import re
 import random
 import uuid
 from dataclasses import dataclass, field
 from typing import Optional
 from database import get_db
+
+_STRIP_PREFIXES = ("the ", "to ", "a ", "an ")
+
+_ABSTRACT_KEYWORDS = frozenset([
+    # pronouns
+    "i", "you", "he", "she", "we", "they", "it",
+    # question words
+    "who", "what", "where", "when", "how", "why", "which",
+    # demonstratives / locatives
+    "this", "that", "here", "there",
+    # indefinite pronouns
+    "someone", "something", "nobody", "nothing", "everything", "everyone",
+    # responses / fillers
+    "yes", "no", "okay", "sorry", "welcome", "hello", "hi", "bye", "goodbye",
+    "please", "congratulations", "cheers", "help",
+    # time adverbs
+    "always", "never", "sometimes", "often", "early", "late", "now", "later",
+    "today", "tomorrow", "yesterday",
+    # ordinals
+    "first", "second", "third",
+    # numbers
+    "zero", "one", "two", "three", "four", "five", "six", "seven", "eight",
+    "nine", "ten", "eleven", "twelve", "thirteen", "fourteen", "fifteen",
+    "sixteen", "seventeen", "eighteen", "nineteen", "twenty", "thirty",
+    "forty", "fifty", "sixty", "seventy", "eighty", "ninety", "hundred", "thousand",
+    # days / months
+    "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "january", "february", "march", "april", "may", "june", "july", "august",
+    "september", "october", "november", "december",
+    # seasons
+    "spring", "summer", "autumn", "winter",
+    # prepositions / conjunctions
+    "in", "on", "at", "from", "by", "with", "without", "through", "over",
+    "under", "above", "below", "between", "among", "around", "during", "until",
+    "via", "per", "off", "inside", "outside", "opposite", "near", "far",
+    "left", "right", "up", "down", "back", "north", "south", "east", "west",
+    "forward", "along", "past", "against", "before", "after", "about",
+    # abstract adjectives
+    "good", "bad", "new", "old", "big", "small", "large", "long", "short",
+    "fast", "slow", "easy", "difficult", "expensive", "cheap", "heavy", "light",
+    "many", "few", "more", "less", "same", "different", "important", "interesting",
+    "boring", "busy", "quiet", "dangerous", "safe", "clean", "dirty",
+    "warm", "cold", "hot", "freezing", "sunny", "cloudy", "rainy",
+    "sweet", "sour", "salty", "bitter", "spicy", "fresh", "frozen", "organic",
+    "vegetarian", "funny", "serious", "honest", "smart", "creative", "patient",
+    "impatient", "shy", "confident", "curious", "optimistic", "pessimistic",
+    "friendly", "kind", "happy", "sad", "angry", "scared", "proud", "nervous",
+    "lonely", "relaxed", "stressed", "healthy", "sick", "young",
+    # abstract verbs (common infinitives stripped of "to ")
+    "be", "have", "go", "come", "see", "hear", "know", "think", "want",
+    "need", "can", "make", "say", "give", "take", "use", "find", "try",
+    "allow", "begin", "stop", "open", "close", "forget", "understand",
+    "talk", "walk", "work", "learn", "read", "write", "look", "listen",
+    "help", "search", "pay", "call", "wait", "start", "ask", "tell",
+    "laugh", "cry", "travel", "swim", "cook", "wear", "fit", "buy",
+    "change", "decide", "choose", "plan", "check", "measure", "compare",
+    "explain", "describe", "draw", "paint", "sing", "dance", "win", "lose",
+    "practise", "repeat", "remember", "dream", "expect", "hope", "believe",
+    "doubt", "accept", "refuse", "visit", "invite", "congratulate", "thank",
+    # abstract nouns
+    "time", "day", "week", "month", "year", "hour", "minute",
+    "word", "question", "answer", "language", "world", "life",
+    "beginning", "end", "direction", "distance", "number", "reason",
+    "way", "part", "idea", "problem", "solution", "difference", "size",
+    "pain", "allergy", "fever", "taste", "flavour", "portion", "tip",
+    "traffic", "route", "salary", "holiday", "vacation", "subject",
+    "lesson", "homework", "diploma", "internship", "application", "position",
+    "department", "project", "deadline", "report", "assignment", "contract",
+])
+
+
+def _extract_image_keyword(target_word: str) -> Optional[str]:
+    """Return a concrete image search keyword from an English translation, or None for abstract concepts."""
+    word = target_word.strip().lower()
+    for prefix in _STRIP_PREFIXES:
+        if word.startswith(prefix):
+            word = word[len(prefix):]
+            break
+    # Take the first word only (handles "man / husband", "informal", etc.)
+    first = re.split(r"[\s/,\(\)]", word)[0].strip()
+    if not first or len(first) < 3 or first in _ABSTRACT_KEYWORDS:
+        return None
+    return first
 
 INDIVIDUAL_MODES = {"multiple_choice", "reverse_mc", "listening", "reverse_type_it"}
 
@@ -197,6 +281,7 @@ def get_next_question(session_id: str) -> Optional[dict]:
         "is_retry": is_retry,
         "mode_index": session.current_mode_index,
         "total_modes": len(session.all_modes),
+        "image_keyword": _extract_image_keyword(word["target_word"]),
     }
 
 

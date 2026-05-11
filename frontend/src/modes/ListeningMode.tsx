@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { GameQuestion } from '../types'
 import { useSpeech } from '../hooks/useSpeech'
 import type { AnswerFeedback } from '../components/GameShell'
+import WordImage from '../components/WordImage'
 
 interface Props {
   question: GameQuestion
@@ -72,6 +73,9 @@ export default function ListeningMode({ question, onAnswer, feedback }: Props) {
           title="Replay"
         >🔊</button>
         <p className="text-xs text-gray-400">Click to replay</p>
+        {question.image_keyword && (
+          <WordImage keyword={question.image_keyword} wordId={question.word_id} />
+        )}
         {revealed && (
           <div className="text-xl font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-xl px-6 py-3 inline-block">
             {question.prompt}

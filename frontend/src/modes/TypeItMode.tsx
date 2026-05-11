@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import type { GameQuestion } from '../types'
 import { useSpeech } from '../hooks/useSpeech'
 import type { AnswerFeedback } from '../components/GameShell'
+import WordImage from '../components/WordImage'
 
 interface Props {
   question: GameQuestion
@@ -48,6 +49,9 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
         <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
           {isReverse ? 'Type the Dutch word' : 'Type the English translation'}
         </p>
+        {question.image_keyword && (
+          <WordImage keyword={question.image_keyword} wordId={question.word_id} />
+        )}
       </div>
 
       <div className="space-y-3">
