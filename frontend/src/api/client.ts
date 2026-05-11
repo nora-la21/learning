@@ -68,6 +68,9 @@ export const api = {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ session_id: sessionId, word_id: wordId, chosen, time_ms: timeMs }),
     }),
+  skipWord: (sessionId: string, wordId: number) =>
+    req<{ progress_index: number; total: number; mode_complete: boolean; new_mode: string | null }>
+      (`/game/skip?session_id=${sessionId}&word_id=${wordId}`, { method: 'POST' }),
 
   getProgressSummary: (listId: number) => req<ProgressSummary>(`/progress/summary?list_id=${listId}`),
   getWordProgress: (listId: number) => req<WordProgressDetail[]>(`/progress/words?list_id=${listId}`),

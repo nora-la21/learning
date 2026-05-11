@@ -73,7 +73,7 @@ export default function ListeningMode({ question, onAnswer, feedback }: Props) {
           title="Replay"
         >🔊</button>
         <p className="text-xs text-gray-400">Click to replay</p>
-        {question.image_keyword && (
+        {feedback && question.image_keyword && (
           <WordImage keyword={question.image_keyword} wordId={question.word_id} />
         )}
         {revealed && (

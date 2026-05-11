@@ -358,6 +358,40 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
     }
 
 
+def skip_word(session_id: str, word_id: int) -> dict:
+    session = _sessions.get(session_id)
+    if not session:
+        raise ValueError("Session not found")
+
+    if session.word_queue and session.word_queue[0] == word_id:
+        session.word_queue.pop(0)
+    else:
+        # Remove from wherever it is
+        if word_id in session.word_queue:
+            session.word_queue.remove(word_id)
+
+    session.correctly_done_this_mode.add(word_id)
+    if word_id in session.wrong_this_pass:
+        session.wrong_this_pass.remove(word_id)
+
+    mode_complete = False
+    new_mode = None
+    if not session.word_queue:
+        mode_complete = True
+        if not session.is_complete:
+            session.word_queue = session.base_word_ids[:]
+            new_mode = session.mode
+
+    return {
+        "progress_index": session.progress,
+        "total": session.total,
+        "mode_complete": mode_complete,
+        "new_mode": new_mode,
+        "mode_index": session.current_mode_index,
+        "total_modes": len(session.all_modes),
+    }
+
+
 def _build_options(correct: str, pool: list[str]) -> list[str]:
     distractors = _generate_distractors(correct, pool)
     options = distractors + [correct]

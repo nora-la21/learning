@@ -43,3 +43,12 @@ def answer_question(body: GameAnswerRequest):
 
     update_word_progress(body.word_id, result["correct"], body.time_ms, result["answered_mode"])
     return GameAnswerResponse(**result)
+
+
+@router.post("/skip")
+def skip_word(session_id: str, word_id: int):
+    try:
+        result = game_engine.skip_word(session_id, word_id)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    return result

@@ -99,6 +99,34 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
     }
   }
 
+  const handleSkip = async () => {
+    if (!sessionId || !question || answering) return
+    setAnswering(true)
+    try {
+      const result = await api.skipWord(sessionId, question.word_id)
+      setProgress(result.progress_index)
+      if (result.progress_index >= result.total) {
+        setFinished(true)
+        setAnswering(false)
+        return
+      }
+      if (result.mode_complete && result.new_mode) {
+        setModeTransition(MODE_LABELS[result.new_mode] ?? result.new_mode)
+        setTimeout(async () => {
+          setModeTransition(null)
+          await loadNext(sessionId)
+          setAnswering(false)
+        }, 1800)
+      } else {
+        await loadNext(sessionId)
+        setAnswering(false)
+      }
+    } catch (e: any) {
+      setError(e.message)
+      setAnswering(false)
+    }
+  }
+
   const handleAnswer = async (chosen: string, timeMs: number) => {
     if (!sessionId || !question || answering) return
     setAnswering(true)
@@ -246,6 +274,15 @@ export default function GameShell({ listId, mode, sessionSize = 10, onBack }: Pr
           )}
           {question.mode === 'reverse_type_it' && (
             <TypeItMode question={question} onAnswer={handleAnswer} feedback={feedback.show ? feedback : null} />
+          )}
+          {!feedback.show && !answering && (
+            <button
+              onClick={handleSkip}
+              className="absolute top-3 right-3 text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition px-2 py-1 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700"
+              title="Skip — I already know this word"
+            >
+              ✓ already know
+            </button>
           )}
           {waitingForNext && (
             <button

@@ -71,7 +71,7 @@ export default function MultipleChoice({ question, onAnswer, feedback, showSourc
             >🔊</button>
           )}
         </div>
-        {question.image_keyword && (
+        {feedback && question.image_keyword && (
           <WordImage keyword={question.image_keyword} wordId={question.word_id} />
         )}
       </div>
