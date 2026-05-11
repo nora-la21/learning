@@ -267,7 +267,7 @@ function LevelGroup({
     <div className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
       <button
         onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-3 px-5 py-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors text-left"
+        className="w-full flex items-center gap-3 px-5 py-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left"
       >
         <span className="text-2xl">{flag}</span>
         <div className="flex-1 min-w-0">
@@ -370,7 +370,7 @@ function ListCard({
 
   return (
     <div className={compact
-      ? 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-750 transition-colors'
+      ? 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors'
       : 'bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow'
     }>
       <div className={`flex items-center gap-4 ${compact ? 'px-5 py-3' : 'p-5'}`}>
