@@ -1,7 +1,9 @@
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent / "data" / "learning.db"
+# Store database in user's home directory, outside the git repo
+DB_PATH = Path.home() / ".dutch_vocab" / "learning.db"
+DB_PATH.parent.mkdir(exist_ok=True)
 
 
 def get_db() -> sqlite3.Connection:
