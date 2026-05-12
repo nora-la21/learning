@@ -19,10 +19,44 @@
       font-weight: 700;
       color: #a78bfa;
       margin-bottom: 12px;
+    }
+    .toggle-row {
       display: flex;
       align-items: center;
-      gap: 8px;
+      justify-content: space-between;
+      background: #2d2a3e;
+      border-radius: 8px;
+      padding: 12px 14px;
+      margin-bottom: 12px;
     }
+    .toggle-label { font-size: 13px; font-weight: 600; }
+    .toggle-sub   { font-size: 11px; color: #888; margin-top: 2px; }
+    .switch {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+    .slider {
+      position: absolute;
+      inset: 0;
+      background: #4b3a6b;
+      border-radius: 24px;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .slider:before {
+      content: '';
+      position: absolute;
+      width: 18px; height: 18px;
+      left: 3px; top: 3px;
+      background: #fff;
+      border-radius: 50%;
+      transition: transform 0.2s;
+    }
+    input:checked + .slider { background: #7c3aed; }
+    input:checked + .slider:before { transform: translateX(20px); }
     .status-row {
       background: #2d2a3e;
       border-radius: 8px;
@@ -33,16 +67,6 @@
     .status-row .label { color: #888; font-size: 11px; margin-bottom: 3px; }
     .status-ok  { color: #86efac; }
     .status-err { color: #fca5a5; }
-    .tip {
-      font-size: 12px;
-      color: #9ca3af;
-      line-height: 1.5;
-      background: #2d2a3e;
-      border-radius: 8px;
-      padding: 10px 12px;
-      margin-bottom: 12px;
-    }
-    .tip strong { color: #a78bfa; }
     .open-app {
       display: block;
       width: 100%;
@@ -64,17 +88,23 @@
 <body>
   <h1>🇳🇱 Dutch Vocabulary Helper</h1>
 
+  <div class="toggle-row">
+    <div>
+      <div class="toggle-label" id="toggle-label">Popup enabled</div>
+      <div class="toggle-sub">Select text to translate & save</div>
+    </div>
+    <label class="switch">
+      <input type="checkbox" id="enabled-toggle">
+      <span class="slider"></span>
+    </label>
+  </div>
+
   <div class="status-row">
     <div class="label">App connection</div>
     <div id="status-text" class="status-ok">Checking…</div>
   </div>
 
-  <div class="tip">
-    <strong>How to use:</strong><br>
-    Select any Dutch word, phrase, or sentence on a webpage. A popup will appear with a translation — click <strong>+ Add</strong> to save it to your vocabulary list.
-  </div>
-
-  <a href="http://localhost:8000" target="_blank" class="open-app" id="open-app">Open Vocabulary App ↗</a>
+  <a href="http://localhost:5173" target="_blank" class="open-app">Open Vocabulary App ↗</a>
 
   <script src="popup.js"></script>
 </body>

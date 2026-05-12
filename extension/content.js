@@ -149,7 +149,10 @@ document.addEventListener('mouseup', e => {
     return
   }
 
-  showPopup(word, e.clientX, e.clientY)
+  getStorage('dvh_enabled').then(enabled => {
+    if (enabled === false) return
+    showPopup(word, e.clientX, e.clientY)
+  })
 })
 
 // Close popup when clicking elsewhere
