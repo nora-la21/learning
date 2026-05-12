@@ -412,9 +412,12 @@ def skip_word(session_id: str, word_id: int) -> dict:
     if session.word_queue and session.word_queue[0] == word_id:
         session.word_queue.pop(0)
     else:
-        # Remove from wherever it is
         if word_id in session.word_queue:
             session.word_queue.remove(word_id)
+
+    # Remove from base_word_ids so it never comes back in future modes
+    if word_id in session.base_word_ids:
+        session.base_word_ids.remove(word_id)
 
     session.correctly_done_this_mode.add(word_id)
     if word_id in session.wrong_this_pass:
