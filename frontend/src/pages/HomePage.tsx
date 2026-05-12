@@ -384,14 +384,15 @@ function ListCard({
 
   return (
     <div className={compact
-      ? `transition-colors ${done ? 'bg-green-50 dark:bg-green-950 hover:bg-green-100 dark:hover:bg-green-900' : 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'}`
-      : `shadow-sm transition-shadow rounded-2xl border ${done ? 'bg-green-50 dark:bg-green-950 border-green-200 dark:border-green-800 hover:shadow-md' : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:shadow-md'}`
+      ? 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors'
+      : 'bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow'
     }>
       <div className={`flex items-center gap-4 ${compact ? 'px-5 py-3' : 'p-5'}`}>
         {!compact && <div className="text-3xl">{flag}</div>}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <h3 className={`font-semibold truncate ${done ? 'text-green-800 dark:text-green-300' : 'text-gray-900 dark:text-white'}`}>{topic}</h3>
+            {done && <span className="text-lg shrink-0" title="All words mastered!">🏅</span>}
+            <h3 className="font-semibold text-gray-900 dark:text-white truncate">{topic}</h3>
           </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {list.word_count} words
