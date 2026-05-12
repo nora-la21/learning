@@ -4,7 +4,17 @@ from database import get_db
 from models import WordListResponse, WordResponse, WordUpdate, SetLearnedRequest, ResetProgressRequest
 from pydantic import BaseModel
 
+import re
+
 router = APIRouter(prefix="/api", tags=["words"])
+
+
+def _natural_sort_key(name: str):
+    # Extract theme number like "1.2" or "1.10" for numeric sorting
+    m = re.search(r'(\d+)\.(\d+)', name)
+    if m:
+        return (0, int(m.group(1)), int(m.group(2)), name)
+    return (1, 0, 0, name)
 
 
 @router.get("/lists", response_model=list[WordListResponse])
@@ -36,7 +46,9 @@ def get_lists(builtin: Optional[bool] = Query(None)):
         ORDER BY wl.builtin DESC, wl.name ASC
     """).fetchall()
     conn.close()
-    return [dict(r) for r in rows]
+    result = [dict(r) for r in rows]
+    result.sort(key=lambda r: (0 if r['builtin'] else 1, _natural_sort_key(r['name'])))
+    return result
 
 
 @router.get("/lists/{list_id}/words", response_model=list[WordResponse])
