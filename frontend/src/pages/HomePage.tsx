@@ -388,7 +388,12 @@ function ListCard({
       <div className={`flex items-center gap-4 ${compact ? 'px-5 py-3' : 'p-5'}`}>
         {!compact && <div className="text-3xl">{flag}</div>}
         <div className="flex-1 min-w-0">
-          <h3 className="font-semibold text-gray-900 dark:text-white truncate">{topic}</h3>
+          <div className="flex items-center gap-2">
+            <h3 className="font-semibold text-gray-900 dark:text-white truncate">{topic}</h3>
+            {list.word_count > 0 && list.mastered_count >= list.word_count && (
+              <span className="shrink-0 text-xs px-2 py-0.5 rounded-full bg-green-100 dark:bg-green-900 text-green-700 dark:text-green-300 font-medium">✓ Done</span>
+            )}
+          </div>
           <p className="text-sm text-gray-500 dark:text-gray-400">
             {list.word_count} words
             {!compact && ` · ${list.source_lang.toUpperCase()} → ${list.target_lang.toUpperCase()}`}
