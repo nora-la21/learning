@@ -167,6 +167,11 @@ export default function HomePage() {
                 onPractice={id => navigate(`/learn/${id}`)}
                 onPracticeSelected={(id, wordIds) => navigate(`/learn/${id}?words=${wordIds.join(',')}`)}
                 onStats={id => navigate(`/progress/${id}`)}
+                onPracticeSets={async listIds => {
+                  const wordArrays = await Promise.all(listIds.map(id => api.getWords(id)))
+                  const wordIds = wordArrays.flat().map(w => w.id)
+                  navigate(`/learn/${listIds[0]}?words=${wordIds.join(',')}`)
+                }}
               />
             ))}
           </div>
@@ -261,7 +266,7 @@ function VoicePicker() {
 }
 
 function LevelGroup({
-  level, lists, defaultOpen, onPractice, onPracticeSelected, onStats,
+  level, lists, defaultOpen, onPractice, onPracticeSelected, onStats, onPracticeSets,
 }: {
   level: string
   lists: WordList[]
@@ -269,39 +274,63 @@ function LevelGroup({
   onPractice: (id: number) => void
   onPracticeSelected: (id: number, wordIds: number[]) => void
   onStats: (id: number) => void
+  onPracticeSets: (listIds: number[]) => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
+  const [selectedSets, setSelectedSets] = useState<Set<number>>(new Set())
   const totalWords = lists.reduce((s, l) => s + l.word_count, 0)
   const label = LEVEL_LABELS[level] ?? level
   const flag = FLAG[lists[0]?.source_lang] ?? '📖'
 
+  const toggleSet = (id: number) => {
+    setSelectedSets(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
+
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center gap-3 px-5 py-4 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors text-left"
-      >
-        <span className="text-2xl">{flag}</span>
-        <div className="flex-1 min-w-0">
-          <span className="font-semibold text-gray-900 dark:text-white">{label}</span>
-          <span className="ml-2 text-sm text-gray-400">{lists.length} topics · {totalWords} words</span>
-        </div>
-        <span className={`text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>
-          ▾
-        </span>
-      </button>
+      <div className="flex items-center gap-3 px-5 py-4 bg-white dark:bg-gray-800">
+        <button onClick={() => setOpen(v => !v)} className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
+          <span className="text-2xl">{flag}</span>
+          <div className="flex-1 min-w-0">
+            <span className="font-semibold text-gray-900 dark:text-white">{label}</span>
+            <span className="ml-2 text-sm text-gray-400">{lists.length} topics · {totalWords} words</span>
+          </div>
+          <span className={`text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▾</span>
+        </button>
+        {selectedSets.size > 0 && (
+          <button
+            onClick={() => { onPracticeSets(Array.from(selectedSets)); setSelectedSets(new Set()) }}
+            className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition font-medium"
+          >▶ Practice {selectedSets.size} set{selectedSets.size > 1 ? 's' : ''}</button>
+        )}
+      </div>
       {open && (
         <div className="border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 bg-gray-50 dark:bg-gray-900">
           {lists.map(list => (
-            <ListCard
-              key={list.id}
-              list={list}
-              flag={flag}
-              compact
-              onPractice={() => onPractice(list.id)}
-              onPracticeSelected={wordIds => onPracticeSelected(list.id, wordIds)}
-              onStats={() => onStats(list.id)}
-            />
+            <div key={list.id} className="flex items-center">
+              <div className="pl-4 pr-1 py-3">
+                <input
+                  type="checkbox"
+                  checked={selectedSets.has(list.id)}
+                  onChange={() => toggleSet(list.id)}
+                  className="w-4 h-4 accent-violet-600 cursor-pointer"
+                />
+              </div>
+              <div className="flex-1 min-w-0">
+                <ListCard
+                  list={list}
+                  flag={flag}
+                  compact
+                  onPractice={() => onPractice(list.id)}
+                  onPracticeSelected={wordIds => onPracticeSelected(list.id, wordIds)}
+                  onStats={() => onStats(list.id)}
+                />
+              </div>
+            </div>
           ))}
         </div>
       )}

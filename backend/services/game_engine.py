@@ -107,6 +107,7 @@ class GameSession:
     xp: int = 0
     source_lang: str = "nl"
     target_lang: str = "en"
+    distractor_word_ids: list = field(default_factory=list)
 
     @property
     def mode(self) -> str:
@@ -142,48 +143,79 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
         conn.close()
         raise ValueError("Word list not found")
 
-    if mode == "all_in_one":
-        all_words = conn.execute(
-            "SELECT w.id, "
-            "COALESCE(SUM(wp.correct_count + wp.incorrect_count), 0) as times_seen, "
-            "SUM(CASE WHEN wp.mastered = 1 THEN 1 ELSE 0 END) as modes_mastered "
-            "FROM words w "
-            "LEFT JOIN word_progress wp ON wp.word_id = w.id "
-            "WHERE w.list_id = ? AND w.manually_excluded = 0 "
-            "GROUP BY w.id",
-            (list_id,),
-        ).fetchall()
-        conn.close()
-        buckets: dict[tuple, list] = {}
-        for row in all_words:
-            key = (1 if row["modes_mastered"] >= 4 else 0, row["times_seen"])
-            buckets.setdefault(key, []).append(row["id"])
-    else:
-        all_words = conn.execute(
-            "SELECT w.id, "
-            "COALESCE(wp.correct_count + wp.incorrect_count, 0) as times_seen, "
-            "COALESCE(wp.mastered, 0) as mastered "
-            "FROM words w "
-            "LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? "
-            "WHERE w.list_id = ? AND w.manually_excluded = 0",
-            (mode, list_id),
-        ).fetchall()
-        conn.close()
-        buckets = {}
-        for row in all_words:
-            key = (row["mastered"], row["times_seen"])
-            buckets.setdefault(key, []).append(row["id"])
-
-    # Sort buckets: mastered=0 before mastered=1, fewer attempts first within each
-    pool: list[int] = []
-    for key in sorted(buckets.keys()):
-        group = buckets[key]
-        random.shuffle(group)
-        pool.extend(group)
-
+    # When specific word_ids provided, fetch those directly (supports multi-list sessions)
     if word_ids is not None:
-        allowed = set(word_ids)
-        pool = [w for w in pool if w in allowed]
+        ph = ','.join('?' * len(word_ids))
+        if mode == "all_in_one":
+            all_words = conn.execute(
+                f"SELECT w.id, "
+                f"COALESCE(SUM(wp.correct_count + wp.incorrect_count), 0) as times_seen, "
+                f"SUM(CASE WHEN wp.mastered = 1 THEN 1 ELSE 0 END) as modes_mastered "
+                f"FROM words w LEFT JOIN word_progress wp ON wp.word_id = w.id "
+                f"WHERE w.id IN ({ph}) AND w.manually_excluded = 0 GROUP BY w.id",
+                word_ids,
+            ).fetchall()
+            conn.close()
+            buckets: dict[tuple, list] = {}
+            for row in all_words:
+                key = (1 if row["modes_mastered"] >= 4 else 0, row["times_seen"])
+                buckets.setdefault(key, []).append(row["id"])
+        else:
+            all_words = conn.execute(
+                f"SELECT w.id, "
+                f"COALESCE(wp.correct_count + wp.incorrect_count, 0) as times_seen, "
+                f"COALESCE(wp.mastered, 0) as mastered "
+                f"FROM words w LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? "
+                f"WHERE w.id IN ({ph}) AND w.manually_excluded = 0",
+                [mode] + list(word_ids),
+            ).fetchall()
+            conn.close()
+            buckets = {}
+            for row in all_words:
+                key = (row["mastered"], row["times_seen"])
+                buckets.setdefault(key, []).append(row["id"])
+        pool: list[int] = []
+        for key in sorted(buckets.keys()):
+            group = buckets[key]
+            random.shuffle(group)
+            pool.extend(group)
+    else:
+        if mode == "all_in_one":
+            all_words = conn.execute(
+                "SELECT w.id, "
+                "COALESCE(SUM(wp.correct_count + wp.incorrect_count), 0) as times_seen, "
+                "SUM(CASE WHEN wp.mastered = 1 THEN 1 ELSE 0 END) as modes_mastered "
+                "FROM words w "
+                "LEFT JOIN word_progress wp ON wp.word_id = w.id "
+                "WHERE w.list_id = ? AND w.manually_excluded = 0 "
+                "GROUP BY w.id",
+                (list_id,),
+            ).fetchall()
+            conn.close()
+            buckets = {}
+            for row in all_words:
+                key = (1 if row["modes_mastered"] >= 4 else 0, row["times_seen"])
+                buckets.setdefault(key, []).append(row["id"])
+        else:
+            all_words = conn.execute(
+                "SELECT w.id, "
+                "COALESCE(wp.correct_count + wp.incorrect_count, 0) as times_seen, "
+                "COALESCE(wp.mastered, 0) as mastered "
+                "FROM words w "
+                "LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? "
+                "WHERE w.list_id = ? AND w.manually_excluded = 0",
+                (mode, list_id),
+            ).fetchall()
+            conn.close()
+            buckets = {}
+            for row in all_words:
+                key = (row["mastered"], row["times_seen"])
+                buckets.setdefault(key, []).append(row["id"])
+        pool = []
+        for key in sorted(buckets.keys()):
+            group = buckets[key]
+            random.shuffle(group)
+            pool.extend(group)
 
     if len(pool) < 4:
         raise ValueError("Need at least 4 words to start a session")
@@ -206,6 +238,7 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
         correctly_done_this_mode=set(),
         source_lang=list_row["source_lang"],
         target_lang=list_row["target_lang"],
+        distractor_word_ids=list(pool) if word_ids is not None else [],
     )
     _sessions[session_id] = session
     return session
@@ -225,10 +258,17 @@ def get_next_question(session_id: str) -> Optional[dict]:
         conn.close()
         return None
 
-    all_words = conn.execute(
-        "SELECT source_word, target_word FROM words WHERE list_id = ? AND id != ?",
-        (session.list_id, word_id),
-    ).fetchall()
+    if session.distractor_word_ids:
+        ph = ','.join('?' * len(session.distractor_word_ids))
+        all_words = conn.execute(
+            f"SELECT source_word, target_word FROM words WHERE id IN ({ph}) AND id != ?",
+            session.distractor_word_ids + [word_id],
+        ).fetchall()
+    else:
+        all_words = conn.execute(
+            "SELECT source_word, target_word FROM words WHERE list_id = ? AND id != ?",
+            (session.list_id, word_id),
+        ).fetchall()
     conn.close()
 
     mode = session.mode
