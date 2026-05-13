@@ -29,10 +29,12 @@ def get_lists(builtin: Optional[bool] = Query(None)):
     rows = conn.execute(f"""
         SELECT wl.*,
           COUNT(DISTINCT w.id) as word_count,
-          (SELECT COUNT(DISTINCT wp.word_id)
-           FROM word_progress wp
-           JOIN words ww ON ww.id = wp.word_id
-           WHERE ww.list_id = wl.id AND ww.manually_excluded = 0) as seen_count,
+          (SELECT COUNT(DISTINCT ww3.id)
+           FROM words ww3
+           WHERE ww3.list_id = wl.id
+           AND (ww3.manually_excluded = 1
+                OR EXISTS (SELECT 1 FROM word_progress wp3 WHERE wp3.word_id = ww3.id))
+          ) as seen_count,
           (SELECT COUNT(DISTINCT ww2.id)
            FROM words ww2
            WHERE ww2.list_id = wl.id
