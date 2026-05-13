@@ -104,6 +104,8 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
     if (!sessionId || !question || answering) return
     setAnswering(true)
     try {
+      // Permanently mark as known so it never appears again
+      await api.setWordLearned(question.word_id, true)
       const result = await api.skipWord(sessionId, question.word_id)
       setProgress(result.progress_index)
       if (result.progress_index >= result.total) {
