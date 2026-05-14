@@ -11,12 +11,12 @@ const MODES: { id: GameMode; label: string; desc: string; icon: string; highligh
   { id: 'reverse_type_it', label: 'Type It', desc: 'See the English word, type the Dutch translation', icon: '✍️' },
 ]
 
-const SESSION_SIZES = [5, 10, 20, 50]
+const SESSION_SIZES: (number | null)[] = [5, 10, 20, 50, null]
 
 export default function LearnPage() {
   const { listId } = useParams<{ listId: string }>()
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null)
-  const [sessionSize, setSessionSize] = useState(10)
+  const [sessionSize, setSessionSize] = useState<number | null>(10)
   const navigate = useNavigate()
   const id = Number(listId)
 
@@ -60,10 +60,10 @@ export default function LearnPage() {
         {/* Session size picker */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 mb-5 flex items-center gap-4">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300 shrink-0">Words per session:</span>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
             {SESSION_SIZES.map(size => (
               <button
-                key={size}
+                key={size ?? 'all'}
                 onClick={() => setSessionSize(size)}
                 className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
                   sessionSize === size
@@ -71,7 +71,7 @@ export default function LearnPage() {
                     : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
                 }`}
               >
-                {size}
+                {size ?? 'All'}
               </button>
             ))}
           </div>
