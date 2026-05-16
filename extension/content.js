@@ -26,7 +26,25 @@ async function translate(word) {
   }
 }
 
-// ── Remove existing popup ───────────────────────────────────────────────────
+// ── Look up Dutch article (de/het) via Wiktionary ──────────────────────────
+async function lookupArticle(word) {
+  if (word.includes(' ')) return null  // only single words
+  try {
+    const url = `https://nl.wiktionary.org/w/api.php?action=query&titles=${encodeURIComponent(word.toLowerCase())}&prop=revisions&rvprop=content&format=json&origin=*`
+    const r = await fetch(url)
+    const d = await r.json()
+    const page = Object.values(d.query?.pages ?? {})[0]
+    const content = page?.revisions?.[0]?.['*'] ?? page?.revisions?.[0]?.content ?? ''
+    if (!content) return null
+    const m = content.match(/\{\{nl-noun\|([mnf]+)/)
+    if (!m) return null
+    return m[1] === 'n' ? 'het' : 'de'
+  } catch {
+    return null
+  }
+}
+
+
 function removePopup() {
   if (popup) { popup.remove(); popup = null }
 }
@@ -72,14 +90,22 @@ async function showPopup(word, x, y) {
   popup.style.top  = top  + 'px'
   document.body.appendChild(popup)
 
-  // Translate
+  // Translate + look up article in parallel
   let translation = null
-  translate(word).then(t => {
-    const el = popup?.querySelector('.dvh-translation')
-    if (!el) return
+  let sourceWord = word
+  Promise.all([translate(word), lookupArticle(word)]).then(([t, article]) => {
+    if (!popup) return
     translation = t
-    el.textContent = t || '(no translation found)'
-    el.classList.remove('dvh-loading')
+    const el = popup.querySelector('.dvh-translation')
+    if (el) {
+      el.textContent = t || '(no translation found)'
+      el.classList.remove('dvh-loading')
+    }
+    if (article) {
+      sourceWord = `${article} ${word}`
+      const wordEl = popup.querySelector('.dvh-word')
+      if (wordEl) wordEl.textContent = sourceWord
+    }
   })
 
   // Close button
@@ -103,7 +129,7 @@ async function showPopup(word, x, y) {
       const r = await fetch(`${API}/words/quick-add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ list_id: listId, source_word: word, target_word: tgt }),
+        body: JSON.stringify({ list_id: listId, source_word: sourceWord, target_word: tgt }),
       })
       if (!r.ok) throw new Error('Failed')
       status.textContent = `✓ Added to list`
