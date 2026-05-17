@@ -63,7 +63,8 @@ _ABSTRACT_KEYWORDS = frozenset([
     "explain", "describe", "draw", "paint", "sing", "dance", "win", "lose",
     "practise", "repeat", "remember", "dream", "expect", "hope", "believe",
     "doubt", "accept", "refuse", "visit", "invite", "congratulate", "thank",
-    # abstract nouns
+    # verbs with ambiguous/medical Wikipedia pages
+    "boil", "scratch", "bleed", "swell", "burn", "itch",
     "time", "day", "week", "month", "year", "hour", "minute",
     "word", "question", "answer", "language", "world", "life",
     "beginning", "end", "direction", "distance", "number", "reason",
