@@ -21,7 +21,8 @@ export const api = {
     const qs = builtin === true ? '?builtin=true' : builtin === false ? '?builtin=false' : ''
     return req<WordList[]>(`/lists${qs}`)
   },
-  getWords: (listId: number) => req<Word[]>(`/lists/${listId}/words`),
+  getWords: (listId: number, excludeMastered = false) =>
+    req<Word[]>(`/lists/${listId}/words${excludeMastered ? '?exclude_mastered=true' : ''}`),
   deleteList: (listId: number) => req<void>(`/lists/${listId}`, { method: 'DELETE' }),
   updateWord: (wordId: number, data: Partial<WordPair>) =>
     req<Word>(`/words/${wordId}`, {
