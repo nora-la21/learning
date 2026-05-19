@@ -17,6 +17,7 @@ export default function LearnPage() {
   const { listId } = useParams<{ listId: string }>()
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null)
   const [sessionSize, setSessionSize] = useState<number | null>(10)
+  const [skipMasteredModes, setSkipMasteredModes] = useState(false)
   const navigate = useNavigate()
   const id = Number(listId)
 
@@ -37,6 +38,7 @@ export default function LearnPage() {
             mode={selectedMode}
             sessionSize={sessionSize}
             wordIds={wordIds}
+            skipMasteredModes={skipMasteredModes}
             onBack={() => setSelectedMode(null)}
           />
         </div>
@@ -58,7 +60,7 @@ export default function LearnPage() {
         </p>
 
         {/* Session size picker */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 mb-5 flex items-center gap-4">
+        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 mb-3 flex items-center gap-4">
           <span className="text-sm font-medium text-gray-700 dark:text-gray-300 shrink-0">Words per session:</span>
           <div className="flex gap-2 flex-wrap">
             {SESSION_SIZES.map(size => (
@@ -76,6 +78,20 @@ export default function LearnPage() {
             ))}
           </div>
         </div>
+
+        {/* Skip mastered modes toggle */}
+        <label className="flex items-center gap-3 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 mb-5 cursor-pointer group">
+          <input
+            type="checkbox"
+            checked={skipMasteredModes}
+            onChange={e => setSkipMasteredModes(e.target.checked)}
+            className="w-4 h-4 accent-violet-600 cursor-pointer shrink-0"
+          />
+          <div>
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Skip mastered modes</span>
+            <p className="text-xs text-gray-400 mt-0.5">In All-in-One, skip modes where a word is already mastered</p>
+          </div>
+        </label>
 
         <div className="space-y-3">
           {MODES.map(m => (
