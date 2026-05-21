@@ -40,7 +40,7 @@ export default function MultipleChoice({ question, onAnswer, feedback, showSourc
 
   const handleOption = (opt: string, lang: string) => {
     if (chosen) return
-    speak(opt, lang)
+    if (lang === question.source_lang) speak(opt, lang)
     setChosen(opt)
     setTimeout(() => {
       onAnswer(opt, Date.now() - startTime.current)
