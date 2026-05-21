@@ -23,10 +23,11 @@ let currentAudio: HTMLAudioElement | null = null
 let pendingVoicesHandler: (() => void) | null = null
 let consecutiveFailures = 0
 let bypassUntil = 0
+let speakGeneration = 0  // monotonic counter — increment on each speak() call to cancel stale async work
 
-// Blob URL cache: tts-url → fully-downloaded blob URL
+// blob URL cache: tts-url → fully-downloaded blob URL (audio data fully in memory)
 const blobCache = new Map<string, string>()
-// In-flight fetches so we don't double-fetch the same URL
+// deduplicate concurrent fetches for the same URL
 const pendingFetches = new Map<string, Promise<string | null>>()
 
 function buildUrl(text: string, lang: string): string {
@@ -35,20 +36,19 @@ function buildUrl(text: string, lang: string): string {
   return `/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}${voice ? `&voice=${encodeURIComponent(voice)}` : ''}`
 }
 
-function fetchToBlob(url: string): Promise<string | null> {
+function getOrFetchBlob(url: string): Promise<string | null> {
+  const cached = blobCache.get(url)
+  if (cached) return Promise.resolve(cached)
   if (pendingFetches.has(url)) return pendingFetches.get(url)!
   const p = fetch(url)
     .then(r => r.blob())
     .then(blob => {
       const blobUrl = URL.createObjectURL(blob)
       blobCache.set(url, blobUrl)
-      pendingFetches.delete(url)
       return blobUrl
     })
-    .catch(() => {
-      pendingFetches.delete(url)
-      return null
-    })
+    .catch(() => null)
+    .finally(() => pendingFetches.delete(url))
   pendingFetches.set(url, p)
   return p
 }
@@ -97,7 +97,7 @@ function speakWithWebSpeech(text: string, lang: string, rate: number) {
   }
 }
 
-function playAudio(audio: HTMLAudioElement) {
+function startAudio(audio: HTMLAudioElement, text: string, lang: string, rate: number) {
   currentAudio = audio
   audio.play().catch(() => {
     if (currentAudio === audio) currentAudio = null
@@ -106,6 +106,7 @@ function playAudio(audio: HTMLAudioElement) {
       bypassUntil = Date.now() + 30_000
       consecutiveFailures = 0
     }
+    speakWithWebSpeech(text, lang, rate)
   })
   audio.addEventListener('ended', () => {
     if (currentAudio === audio) currentAudio = null
@@ -117,8 +118,7 @@ export function useSpeech() {
   const preload = useCallback((text: string, lang: string = 'nl') => {
     if (!text?.trim() || Date.now() < bypassUntil) return
     const url = buildUrl(text, lang)
-    if (blobCache.has(url) || pendingFetches.has(url)) return
-    fetchToBlob(url).catch(() => {})
+    getOrFetchBlob(url)  // fire-and-forget; result stored in blobCache
   }, [])
 
   const speak = useCallback((text: string, lang: string = 'nl', rate = 0.85) => {
@@ -135,32 +135,28 @@ export function useSpeech() {
     }
 
     const url = buildUrl(text, lang)
-    const blobUrl = blobCache.get(url)
+    const cachedBlob = blobCache.get(url)
 
-    if (blobUrl) {
-      // Fully downloaded — plays instantly with no buffering
-      playAudio(new Audio(blobUrl))
+    if (cachedBlob) {
+      // Fully in memory — no buffering possible
+      startAudio(new Audio(cachedBlob), text, lang, rate)
       return
     }
 
-    // Not cached yet — fetch and play when ready
-    // Keep a reference so we can cancel if speak() is called again before this resolves
-    const token = {}
-    ;(currentAudio as any) = token  // use token as a cancellation marker
-
-    fetchToBlob(url).then(resolvedUrl => {
-      // If another speak() has fired since, abort
-      if ((currentAudio as any) !== token) return
-      currentAudio = null
-      if (!resolvedUrl) {
+    // Fetch (or await an in-flight fetch), then play
+    const gen = ++speakGeneration
+    getOrFetchBlob(url).then(blobUrl => {
+      if (speakGeneration !== gen) return  // a newer speak() fired — discard this result
+      if (!blobUrl) {
         speakWithWebSpeech(text, lang, rate)
         return
       }
-      playAudio(new Audio(resolvedUrl))
+      startAudio(new Audio(blobUrl), text, lang, rate)
     })
   }, [])
 
   const cancel = useCallback(() => {
+    speakGeneration++  // cancel any pending async speak
     if (currentAudio) {
       currentAudio.pause()
       currentAudio = null
