@@ -1,9 +1,11 @@
+import os
 import sqlite3
 from pathlib import Path
 
-# Store database in user's home directory, outside the git repo
-DB_PATH = Path.home() / ".dutch_vocab" / "learning.db"
-DB_PATH.parent.mkdir(exist_ok=True)
+# On Railway: set DB_PATH env var to point at a mounted volume (e.g. /data/learning.db)
+# Locally: defaults to ~/.dutch_vocab/learning.db (outside the git repo)
+DB_PATH = Path(os.environ.get("DB_PATH", str(Path.home() / ".dutch_vocab" / "learning.db")))
+DB_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 def get_db() -> sqlite3.Connection:
