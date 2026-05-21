@@ -50,7 +50,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
   const [waitingForNext, setWaitingForNext] = useState(false)
   const pendingAdvance = useRef<(() => void) | null>(null)
   const navigate = useNavigate()
-  const { speak, preload } = useSpeech()
+  const { speak, preload, cancel } = useSpeech()
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -162,11 +162,12 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
       })
 
       const advance = async () => {
+        cancel()
         setWaitingForNext(false)
         pendingAdvance.current = null
-        setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
 
         if (result.progress_index >= result.total) {
+          setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
           setFinished(true)
           setAnswering(false)
           return
@@ -174,12 +175,14 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
 
         if (result.mode_complete && result.new_mode) {
           setModeTransition(MODE_LABELS[result.new_mode] ?? result.new_mode)
+          setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
           setTimeout(async () => {
             await loadNext(sessionId)
             setModeTransition(null)
             setAnswering(false)
           }, 1800)
         } else {
+          setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
           await loadNext(sessionId)
           setAnswering(false)
         }
