@@ -24,13 +24,33 @@ let pendingVoicesHandler: (() => void) | null = null
 let consecutiveFailures = 0
 let bypassUntil = 0
 
-// Preload cache: url → Audio element already fetching
-const preloadCache = new Map<string, HTMLAudioElement>()
+// Blob URL cache: tts-url → fully-downloaded blob URL
+const blobCache = new Map<string, string>()
+// In-flight fetches so we don't double-fetch the same URL
+const pendingFetches = new Map<string, Promise<string | null>>()
 
 function buildUrl(text: string, lang: string): string {
   const langPrefix = lang.toLowerCase().split('-')[0]
   const voice = localStorage.getItem(`preferred_voice_${langPrefix}`) ?? ''
   return `/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}${voice ? `&voice=${encodeURIComponent(voice)}` : ''}`
+}
+
+function fetchToBlob(url: string): Promise<string | null> {
+  if (pendingFetches.has(url)) return pendingFetches.get(url)!
+  const p = fetch(url)
+    .then(r => r.blob())
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob)
+      blobCache.set(url, blobUrl)
+      pendingFetches.delete(url)
+      return blobUrl
+    })
+    .catch(() => {
+      pendingFetches.delete(url)
+      return null
+    })
+  pendingFetches.set(url, p)
+  return p
 }
 
 function speakWithWebSpeech(text: string, lang: string, rate: number) {
@@ -43,7 +63,6 @@ function speakWithWebSpeech(text: string, lang: string, rate: number) {
     pendingVoicesHandler = null
   }
 
-  // Check before cancel — after cancel() speaking becomes false immediately
   const wasSpeaking = window.speechSynthesis.speaking
   window.speechSynthesis.cancel()
 
@@ -72,23 +91,34 @@ function speakWithWebSpeech(text: string, lang: string, rate: number) {
     pendingVoicesHandler = doSpeak
     window.speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true })
   } else if (wasSpeaking) {
-    // Give Safari time to fully cancel before speaking again — prevents first-syllable repeat
     setTimeout(doSpeak, 50)
   } else {
     doSpeak()
   }
 }
 
+function playAudio(audio: HTMLAudioElement) {
+  currentAudio = audio
+  audio.play().catch(() => {
+    if (currentAudio === audio) currentAudio = null
+    consecutiveFailures++
+    if (consecutiveFailures >= 3) {
+      bypassUntil = Date.now() + 30_000
+      consecutiveFailures = 0
+    }
+  })
+  audio.addEventListener('ended', () => {
+    if (currentAudio === audio) currentAudio = null
+    consecutiveFailures = 0
+  }, { once: true })
+}
+
 export function useSpeech() {
   const preload = useCallback((text: string, lang: string = 'nl') => {
     if (!text?.trim() || Date.now() < bypassUntil) return
     const url = buildUrl(text, lang)
-    if (preloadCache.has(url)) return
-    const audio = new Audio(url)
-    audio.preload = 'auto'
-    preloadCache.set(url, audio)
-    // Evict after 60s to avoid stale entries
-    setTimeout(() => preloadCache.delete(url), 60_000)
+    if (blobCache.has(url) || pendingFetches.has(url)) return
+    fetchToBlob(url).catch(() => {})
   }, [])
 
   const speak = useCallback((text: string, lang: string = 'nl', rate = 0.85) => {
@@ -105,24 +135,28 @@ export function useSpeech() {
     }
 
     const url = buildUrl(text, lang)
+    const blobUrl = blobCache.get(url)
 
-    // Use preloaded element if available, otherwise create fresh
-    const audio = preloadCache.get(url) ?? new Audio(url)
-    preloadCache.delete(url)
-    currentAudio = audio
+    if (blobUrl) {
+      // Fully downloaded — plays instantly with no buffering
+      playAudio(new Audio(blobUrl))
+      return
+    }
 
-    audio.play().catch(() => {
-      if (currentAudio === audio) currentAudio = null
-      consecutiveFailures++
-      if (consecutiveFailures >= 3) {
-        bypassUntil = Date.now() + 30_000
-        consecutiveFailures = 0
+    // Not cached yet — fetch and play when ready
+    // Keep a reference so we can cancel if speak() is called again before this resolves
+    const token = {}
+    ;(currentAudio as any) = token  // use token as a cancellation marker
+
+    fetchToBlob(url).then(resolvedUrl => {
+      // If another speak() has fired since, abort
+      if ((currentAudio as any) !== token) return
+      currentAudio = null
+      if (!resolvedUrl) {
+        speakWithWebSpeech(text, lang, rate)
+        return
       }
-      speakWithWebSpeech(text, lang, rate)
-    })
-    audio.addEventListener('ended', () => {
-      if (currentAudio === audio) currentAudio = null
-      consecutiveFailures = 0
+      playAudio(new Audio(resolvedUrl))
     })
   }, [])
 
