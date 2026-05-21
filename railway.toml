@@ -1,5 +1,6 @@
 [build]
 builder = "nixpacks"
+buildCommand = "cd .. && npm ci --prefix frontend && npm run build --prefix frontend && mkdir -p backend/static && cp -r frontend/dist/. backend/static/"
 
 [deploy]
 startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"
