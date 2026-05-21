@@ -1,9 +1,11 @@
 import os
+import shutil
+import tempfile
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
-from database import init_db, seed_builtin_lists
+from database import DB_PATH, init_db, seed_builtin_lists
 from routers import words, upload, game, progress, tts
 
 
@@ -49,6 +51,33 @@ app.include_router(tts.router)
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+_ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
+
+
+@app.get("/api/backup")
+def backup_db(key: str = ""):
+    if not _ADMIN_KEY or key != _ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Invalid key")
+    if not DB_PATH.exists():
+        raise HTTPException(status_code=404, detail="Database not found")
+    return FileResponse(str(DB_PATH), filename="learning.db", media_type="application/octet-stream")
+
+
+@app.post("/api/restore")
+async def restore_db(key: str = "", file: UploadFile = File(...)):
+    if not _ADMIN_KEY or key != _ADMIN_KEY:
+        raise HTTPException(status_code=403, detail="Invalid key")
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+    try:
+        shutil.copyfileobj(file.file, tmp)
+        tmp.close()
+        shutil.move(tmp.name, str(DB_PATH))
+    except Exception:
+        os.unlink(tmp.name)
+        raise HTTPException(status_code=500, detail="Restore failed")
+    return {"status": "restored"}
 
 
 _static_dir = os.path.join(os.path.dirname(__file__), "static")
