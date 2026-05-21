@@ -167,8 +167,8 @@ export default function HomePage() {
                 onPractice={id => navigate(`/learn/${id}`)}
                 onPracticeSelected={(id, wordIds) => navigate(`/learn/${id}?words=${wordIds.join(',')}`)}
                 onStats={id => navigate(`/progress/${id}`)}
-                onPracticeSets={async listIds => {
-                  const wordArrays = await Promise.all(listIds.map(id => api.getWords(id)))
+                onPracticeSets={async (listIds, excludeMastered) => {
+                  const wordArrays = await Promise.all(listIds.map(id => api.getWords(id, excludeMastered)))
                   const wordIds = wordArrays.flat().map(w => w.id)
                   navigate(`/learn/${listIds[0]}?words=${wordIds.join(',')}`)
                 }}
@@ -274,10 +274,11 @@ function LevelGroup({
   onPractice: (id: number) => void
   onPracticeSelected: (id: number, wordIds: number[]) => void
   onStats: (id: number) => void
-  onPracticeSets: (listIds: number[]) => void
+  onPracticeSets: (listIds: number[], excludeMastered: boolean) => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const [selectedSets, setSelectedSets] = useState<Set<number>>(new Set())
+  const [excludeMastered, setExcludeMastered] = useState(false)
   const totalWords = lists.reduce((s, l) => s + l.word_count, 0)
   const label = LEVEL_LABELS[level] ?? level
   const flag = FLAG[lists[0]?.source_lang] ?? '📖'
@@ -302,8 +303,19 @@ function LevelGroup({
           <span className={`text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▾</span>
         </button>
         {selectedSets.size > 0 && (
+          <label className="flex items-center gap-1.5 shrink-0 cursor-pointer select-none text-xs text-gray-500 dark:text-gray-400">
+            <input
+              type="checkbox"
+              checked={excludeMastered}
+              onChange={e => setExcludeMastered(e.target.checked)}
+              className="w-3.5 h-3.5 accent-violet-600 cursor-pointer"
+            />
+            Skip mastered
+          </label>
+        )}
+        {selectedSets.size > 0 && (
           <button
-            onClick={() => { onPracticeSets(Array.from(selectedSets)); setSelectedSets(new Set()) }}
+            onClick={() => { onPracticeSets(Array.from(selectedSets), excludeMastered); setSelectedSets(new Set()) }}
             className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition font-medium"
           >▶ Practice {selectedSets.size} set{selectedSets.size > 1 ? 's' : ''}</button>
         )}

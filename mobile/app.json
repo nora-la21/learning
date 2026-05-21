@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "Dutch Vocab",
+    "slug": "dutch-vocab",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#141820"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.dutchvocab.app"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#141820"
+      },
+      "package": "com.dutchvocab.app"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": ["expo-font"]
+  }
+}
