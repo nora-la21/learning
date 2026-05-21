@@ -47,6 +47,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [answering, setAnswering] = useState(false)
+  const answeringRef = useRef(false)
   const [waitingForNext, setWaitingForNext] = useState(false)
   const pendingAdvance = useRef<(() => void) | null>(null)
   const navigate = useNavigate()
@@ -60,6 +61,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.repeat) return
       if (!waitingForNext) return
       if (e.key !== 'Enter' && e.key !== ' ') return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
@@ -103,7 +105,8 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
   }
 
   const handleSkip = async () => {
-    if (!sessionId || !question || answering) return
+    if (!sessionId || !question || answeringRef.current) return
+    answeringRef.current = true
     setAnswering(true)
     try {
       // Permanently mark as known so it never appears again
@@ -112,6 +115,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
       setProgress(result.progress_index)
       if (result.progress_index >= result.total) {
         setFinished(true)
+        answeringRef.current = false
         setAnswering(false)
         return
       }
@@ -120,20 +124,24 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
         setTimeout(async () => {
           await loadNext(sessionId)
           setModeTransition(null)
+          answeringRef.current = false
           setAnswering(false)
         }, 1800)
       } else {
         await loadNext(sessionId)
+        answeringRef.current = false
         setAnswering(false)
       }
     } catch (e: any) {
       setError(e.message)
+      answeringRef.current = false
       setAnswering(false)
     }
   }
 
   const handleAnswer = async (chosen: string, timeMs: number) => {
-    if (!sessionId || !question || answering) return
+    if (!sessionId || !question || answeringRef.current) return
+    answeringRef.current = true
     setAnswering(true)
 
     try {
@@ -169,6 +177,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
         if (result.progress_index >= result.total) {
           setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
           setFinished(true)
+          answeringRef.current = false
           setAnswering(false)
           return
         }
@@ -179,11 +188,13 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
           setTimeout(async () => {
             await loadNext(sessionId)
             setModeTransition(null)
+            answeringRef.current = false
             setAnswering(false)
           }, 1800)
         } else {
           setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
           await loadNext(sessionId)
+          answeringRef.current = false
           setAnswering(false)
         }
       }
@@ -192,6 +203,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
       setWaitingForNext(true)
     } catch (e: any) {
       setError(e.message)
+      answeringRef.current = false
       setAnswering(false)
     }
   }
