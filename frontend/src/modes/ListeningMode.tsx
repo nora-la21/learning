@@ -14,14 +14,15 @@ export default function ListeningMode({ question, onAnswer, feedback }: Props) {
   const [chosen, setChosen] = useState<string | null>(null)
   const [revealed, setRevealed] = useState(false)
   const startTime = useRef(Date.now())
-  const { speak } = useSpeech()
+  const { speak, cancel } = useSpeech()
 
   useEffect(() => {
+    cancel()
     setChosen(null)
     setRevealed(false)
     startTime.current = Date.now()
     const t = setTimeout(() => speak(question.prompt, question.source_lang, 0.8), 300)
-    return () => clearTimeout(t)
+    return () => { clearTimeout(t); cancel() }
   }, [question.question_id])
 
   useEffect(() => {
