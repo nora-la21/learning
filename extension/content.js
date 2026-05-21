@@ -79,7 +79,7 @@ async function showPopup(word, x, y) {
           : lists.map(l => `<option value="${l.id}" ${l.id == savedListId ? 'selected' : ''}>${escHtml(l.name)}</option>`).join('')
         }
       </select>
-      <button class="dvh-btn-add" id="dvh-add" ${lists.length === 0 ? 'disabled' : ''}>+ Add</button>
+      <button class="dvh-btn-add" id="dvh-add" disabled>+ Add</button>
     </div>
     <div class="dvh-row">
       <button class="dvh-new-list" id="dvh-new-list">+ Create new list</button>
@@ -115,6 +115,9 @@ async function showPopup(word, x, y) {
       const wordEl = popup.querySelector('.dvh-word')
       if (wordEl) wordEl.textContent = sourceWord
     }
+    // Enable Add only after lookup completes so sourceWord is final
+    const addBtn = popup.querySelector('#dvh-add')
+    if (addBtn && lists.length > 0) addBtn.disabled = false
   })
 
   // Close button
