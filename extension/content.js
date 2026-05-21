@@ -142,6 +142,7 @@ async function showPopup(word, x, y) {
         body: JSON.stringify({ list_id: listId, source_word: sourceWord, target_word: tgt }),
       })
       if (!r.ok) throw new Error('Failed')
+      if (!popup) return
       status.textContent = `✓ Added to list`
       btn.textContent = '✓'
       setTimeout(removePopup, 1200)
@@ -162,6 +163,7 @@ async function showPopup(word, x, y) {
       const r = await fetch(`${API}/lists?name=${encodeURIComponent(name.trim())}`, { method: 'POST' })
       const data = await r.json()
       lists.push({ id: data.id, name: name.trim() })
+      if (!popup) return
       const sel = popup.querySelector('#dvh-list-sel')
       sel.innerHTML = lists.map(l => `<option value="${l.id}">${escHtml(l.name)}</option>`).join('')
       sel.value = data.id
