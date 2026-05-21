@@ -164,13 +164,15 @@ export default function HomePage() {
                 level={level}
                 lists={group}
                 defaultOpen={i === 0}
-                onPractice={id => navigate(`/learn/${id}`)}
-                onPracticeSelected={(id, wordIds) => navigate(`/learn/${id}?words=${wordIds.join(',')}`)}
-                onStats={id => navigate(`/progress/${id}`)}
-                onPracticeSets={async (listIds, excludeMastered) => {
-                  const wordArrays = await Promise.all(listIds.map(id => api.getWords(id, excludeMastered)))
-                  const wordIds = wordArrays.flat().map(w => w.id)
-                  navigate(`/learn/${listIds[0]}?words=${wordIds.join(',')}`)
+                onPractice={id => { navigate(`/learn/${id}`) }}
+                onPracticeSelected={(id, wordIds) => { navigate(`/learn/${id}?words=${wordIds.join(',')}`) }}
+                onStats={id => { navigate(`/progress/${id}`) }}
+                onPracticeSets={(listIds, excludeMastered) => {
+                  void (async () => {
+                    const wordArrays = await Promise.all(listIds.map(id => api.getWords(id, excludeMastered)))
+                    const wordIds = wordArrays.flat().map(w => w.id)
+                    navigate(`/learn/${listIds[0]}?words=${wordIds.join(',')}`)
+                  })()
                 }}
               />
             ))}
@@ -183,7 +185,7 @@ export default function HomePage() {
                 list={list}
                 flag={FLAG[list.source_lang] ?? '📖'}
                 onPractice={() => navigate(`/learn/${list.id}`)}
-                onPracticeSelected={(_, wordIds) => navigate(`/learn/${list.id}?words=${wordIds.join(',')}`)}
+                onPracticeSelected={(wordIds: number[]) => { navigate(`/learn/${list.id}?words=${wordIds.join(',')}`) }}
                 onStats={() => navigate(`/progress/${list.id}`)}
                 onDelete={() => deleteList(list.id)}
               />
