@@ -147,7 +147,8 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
       if (question.mode === 'listening') {
         // Always speak the Dutch word after answering — reinforcement regardless of correct/wrong
         speak(question.prompt, question.source_lang)
-      } else if (result.correct) {
+      } else if (result.correct && question.mode !== 'reverse_mc') {
+        // reverse_mc already speaks the Dutch option on click — skip to avoid double-speak
         const dutchWord = question.prompt_lang === question.source_lang
           ? question.prompt
           : result.correct_answer
