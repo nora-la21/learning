@@ -1,10 +1,19 @@
-const API = 'http://localhost:8000/api'
+const DEFAULT_SERVER = 'https://learning-production-fbb6.up.railway.app'
+
+function getAPI() {
+  return new Promise(res =>
+    chrome.storage.local.get('dvh_server', v =>
+      res(((v.dvh_server || DEFAULT_SERVER).replace(/\/$/, '')) + '/api')
+    )
+  )
+}
 
 let popup = null
 let lists = []
 
 // ── Fetch lists from the app ────────────────────────────────────────────────
 async function fetchLists() {
+  const API = await getAPI()
   try {
     const r = await fetch(`${API}/lists?builtin=false`)
     lists = await r.json()
@@ -126,6 +135,7 @@ async function showPopup(word, x, y) {
     btn.disabled = true
     btn.textContent = '…'
     try {
+      const API = await getAPI()
       const r = await fetch(`${API}/words/quick-add`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -148,6 +158,7 @@ async function showPopup(word, x, y) {
     const name = prompt('New list name:')
     if (!name?.trim()) return
     try {
+      const API = await getAPI()
       const r = await fetch(`${API}/lists?name=${encodeURIComponent(name.trim())}`, { method: 'POST' })
       const data = await r.json()
       lists.push({ id: data.id, name: name.trim() })
