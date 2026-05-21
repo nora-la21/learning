@@ -21,7 +21,8 @@ export const api = {
     const qs = builtin === true ? '?builtin=true' : builtin === false ? '?builtin=false' : ''
     return req<WordList[]>(`/lists${qs}`)
   },
-  getWords: (listId: number) => req<Word[]>(`/lists/${listId}/words`),
+  getWords: (listId: number, excludeMastered = false) =>
+    req<Word[]>(`/lists/${listId}/words${excludeMastered ? '?exclude_mastered=true' : ''}`),
   deleteList: (listId: number) => req<void>(`/lists/${listId}`, { method: 'DELETE' }),
   updateWord: (wordId: number, data: Partial<WordPair>) =>
     req<Word>(`/words/${wordId}`, {
@@ -55,11 +56,11 @@ export const api = {
       body: JSON.stringify({ list_name: listName, source_lang: sourceLang, target_lang: targetLang, words, source_file: sourceFile }),
     }),
 
-  startGame: (listId: number, mode: GameMode, sessionSize = 20, wordIds?: number[]): Promise<GameStartResponse> =>
+  startGame: (listId: number, mode: GameMode, sessionSize = 20, wordIds?: number[], skipMasteredModes = false): Promise<GameStartResponse> =>
     req<GameStartResponse>('/game/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ list_id: listId, mode, session_size: sessionSize, word_ids: wordIds ?? null }),
+      body: JSON.stringify({ list_id: listId, mode, session_size: sessionSize, word_ids: wordIds ?? null, skip_mastered_modes: skipMasteredModes }),
     }),
   nextQuestion: (sessionId: string) => req<GameQuestion>(`/game/next?session_id=${sessionId}`),
   submitAnswer: (sessionId: string, wordId: number, chosen: string, timeMs: number): Promise<GameAnswerResponse> =>

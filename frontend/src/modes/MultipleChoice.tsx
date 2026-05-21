@@ -13,10 +13,12 @@ interface Props {
 
 export default function MultipleChoice({ question, onAnswer, feedback, showSourceSpeaker = true }: Props) {
   const [chosen, setChosen] = useState<string | null>(null)
+  const chosenRef = useRef<string | null>(null)
   const startTime = useRef(Date.now())
   const { speak } = useSpeech()
 
   useEffect(() => {
+    chosenRef.current = null
     setChosen(null)
     startTime.current = Date.now()
     if (showSourceSpeaker) {
@@ -26,6 +28,7 @@ export default function MultipleChoice({ question, onAnswer, feedback, showSourc
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.repeat) return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       const idx = parseInt(e.key) - 1
       if (idx >= 0 && idx < (question.options?.length ?? 0)) {
@@ -38,9 +41,9 @@ export default function MultipleChoice({ question, onAnswer, feedback, showSourc
     return () => window.removeEventListener('keydown', handler)
   }, [question.question_id, chosen])
 
-  const handleOption = (opt: string, lang: string) => {
-    if (chosen) return
-    speak(opt, lang)
+  const handleOption = (opt: string, _lang: string) => {
+    if (chosenRef.current) return
+    chosenRef.current = opt
     setChosen(opt)
     setTimeout(() => {
       onAnswer(opt, Date.now() - startTime.current)

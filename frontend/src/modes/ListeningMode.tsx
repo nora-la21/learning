@@ -12,16 +12,19 @@ interface Props {
 
 export default function ListeningMode({ question, onAnswer, feedback }: Props) {
   const [chosen, setChosen] = useState<string | null>(null)
+  const chosenRef = useRef<string | null>(null)
   const [revealed, setRevealed] = useState(false)
   const startTime = useRef(Date.now())
-  const { speak } = useSpeech()
+  const { speak, cancel } = useSpeech()
 
   useEffect(() => {
+    cancel()
+    chosenRef.current = null
     setChosen(null)
     setRevealed(false)
     startTime.current = Date.now()
     const t = setTimeout(() => speak(question.prompt, question.source_lang, 0.8), 300)
-    return () => clearTimeout(t)
+    return () => { clearTimeout(t); cancel() }
   }, [question.question_id])
 
   useEffect(() => {
@@ -32,6 +35,7 @@ export default function ListeningMode({ question, onAnswer, feedback }: Props) {
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.repeat) return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
       const idx = parseInt(e.key) - 1
       if (idx >= 0 && idx < (question.options?.length ?? 0)) {
@@ -45,7 +49,8 @@ export default function ListeningMode({ question, onAnswer, feedback }: Props) {
   }, [question.question_id, chosen])
 
   const handleOption = (opt: string, _lang: string) => {
-    if (chosen) return
+    if (chosenRef.current) return
+    chosenRef.current = opt
     setChosen(opt)
     setTimeout(() => {
       onAnswer(opt, Date.now() - startTime.current)

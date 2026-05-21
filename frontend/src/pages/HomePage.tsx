@@ -56,6 +56,7 @@ export default function HomePage() {
   const [myLists, setMyLists] = useState<WordList[]>([])
   const [showUpload, setShowUpload] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [importMsg, setImportMsg] = useState('')
   const navigate = useNavigate()
 
   const load = async () => {
@@ -86,6 +87,27 @@ export default function HomePage() {
     navigate(`/learn/${listId}`)
   }
 
+  const handleImportDb = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const password = localStorage.getItem('app_auth') ?? ''
+    const form = new FormData()
+    form.append('file', file)
+    setImportMsg('Importing…')
+    try {
+      const res = await fetch(`/api/restore?key=${encodeURIComponent(password)}`, { method: 'POST', body: form })
+      if (res.ok) {
+        setImportMsg('Done! Reloading…')
+        setTimeout(() => window.location.reload(), 1000)
+      } else {
+        setImportMsg('Import failed')
+      }
+    } catch {
+      setImportMsg('Import failed')
+    }
+    e.target.value = ''
+  }
+
   const lists = tab === 'builtin' ? builtinLists : myLists
 
   return (
@@ -97,14 +119,21 @@ export default function HomePage() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Vocabulary</h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">Learn Dutch with your own words</p>
           </div>
-          {tab === 'my' && (
-            <button
-              onClick={() => setShowUpload(v => !v)}
-              className="px-5 py-2.5 bg-violet-600 text-white rounded-xl font-semibold hover:bg-violet-700 transition shadow-sm"
-            >
-              {showUpload ? '✕ Close' : '+ Upload words'}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <label className="cursor-pointer px-3 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition" title="Import database">
+              ⬆ Import DB
+              <input type="file" accept=".db" className="hidden" onChange={handleImportDb} />
+            </label>
+            {importMsg && <span className="text-xs text-gray-500">{importMsg}</span>}
+            {tab === 'my' && (
+              <button
+                onClick={() => setShowUpload(v => !v)}
+                className="px-5 py-2.5 bg-violet-600 text-white rounded-xl font-semibold hover:bg-violet-700 transition shadow-sm"
+              >
+                {showUpload ? '✕ Close' : '+ Upload words'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Voice picker */}
@@ -164,13 +193,15 @@ export default function HomePage() {
                 level={level}
                 lists={group}
                 defaultOpen={i === 0}
-                onPractice={id => navigate(`/learn/${id}`)}
-                onPracticeSelected={(id, wordIds) => navigate(`/learn/${id}?words=${wordIds.join(',')}`)}
-                onStats={id => navigate(`/progress/${id}`)}
-                onPracticeSets={async listIds => {
-                  const wordArrays = await Promise.all(listIds.map(id => api.getWords(id)))
-                  const wordIds = wordArrays.flat().map(w => w.id)
-                  navigate(`/learn/${listIds[0]}?words=${wordIds.join(',')}`)
+                onPractice={id => { navigate(`/learn/${id}`) }}
+                onPracticeSelected={(id, wordIds) => { navigate(`/learn/${id}?words=${wordIds.join(',')}`) }}
+                onStats={id => { navigate(`/progress/${id}`) }}
+                onPracticeSets={(listIds, excludeMastered) => {
+                  void (async () => {
+                    const wordArrays = await Promise.all(listIds.map(id => api.getWords(id, excludeMastered)))
+                    const wordIds = wordArrays.flat().map(w => w.id)
+                    navigate(`/learn/${listIds[0]}?words=${wordIds.join(',')}`)
+                  })()
                 }}
               />
             ))}
@@ -182,9 +213,9 @@ export default function HomePage() {
                 key={list.id}
                 list={list}
                 flag={FLAG[list.source_lang] ?? '📖'}
-                onPractice={() => navigate(`/learn/${list.id}`)}
-                onPracticeSelected={(_, wordIds) => navigate(`/learn/${list.id}?words=${wordIds.join(',')}`)}
-                onStats={() => navigate(`/progress/${list.id}`)}
+                onPractice={() => { navigate(`/learn/${list.id}`) }}
+                onPracticeSelected={(wordIds: number[]) => { navigate(`/learn/${list.id}?words=${wordIds.join(',')}`) }}
+                onStats={() => { navigate(`/progress/${list.id}`) }}
                 onDelete={() => deleteList(list.id)}
               />
             ))}
@@ -274,10 +305,11 @@ function LevelGroup({
   onPractice: (id: number) => void
   onPracticeSelected: (id: number, wordIds: number[]) => void
   onStats: (id: number) => void
-  onPracticeSets: (listIds: number[]) => void
+  onPracticeSets: (listIds: number[], excludeMastered: boolean) => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const [selectedSets, setSelectedSets] = useState<Set<number>>(new Set())
+  const [excludeMastered, setExcludeMastered] = useState(false)
   const totalWords = lists.reduce((s, l) => s + l.word_count, 0)
   const label = LEVEL_LABELS[level] ?? level
   const flag = FLAG[lists[0]?.source_lang] ?? '📖'
@@ -302,8 +334,19 @@ function LevelGroup({
           <span className={`text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▾</span>
         </button>
         {selectedSets.size > 0 && (
+          <label className="flex items-center gap-1.5 shrink-0 cursor-pointer select-none text-xs text-gray-500 dark:text-gray-400">
+            <input
+              type="checkbox"
+              checked={excludeMastered}
+              onChange={e => setExcludeMastered(e.target.checked)}
+              className="w-3.5 h-3.5 accent-violet-600 cursor-pointer"
+            />
+            Skip mastered
+          </label>
+        )}
+        {selectedSets.size > 0 && (
           <button
-            onClick={() => { onPracticeSets(Array.from(selectedSets)); setSelectedSets(new Set()) }}
+            onClick={() => { onPracticeSets(Array.from(selectedSets), excludeMastered); setSelectedSets(new Set()) }}
             className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition font-medium"
           >▶ Practice {selectedSets.size} set{selectedSets.size > 1 ? 's' : ''}</button>
         )}
@@ -396,7 +439,6 @@ function ListCard({
   const resetSelected = async () => {
     if (selected.size === 0) return
     await api.resetProgress(Array.from(selected))
-    // Refresh word learned status
     const fresh = await api.getWords(list.id)
     setWords(fresh)
     setSelected(new Set())

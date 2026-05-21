@@ -83,6 +83,24 @@
       transition: background 0.15s;
     }
     .open-app:hover { background: #6d28d9; }
+    .server-row {
+      background: #2d2a3e;
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 12px;
+    }
+    .server-row .label { color: #888; font-size: 11px; margin-bottom: 4px; }
+    .server-row input {
+      width: 100%;
+      background: #1e1b2e;
+      border: 1px solid #4b3a6b;
+      border-radius: 6px;
+      color: #f0eeff;
+      font-size: 11px;
+      padding: 5px 8px;
+      outline: none;
+    }
+    .server-row input:focus { border-color: #7c3aed; }
   </style>
 </head>
 <body>
@@ -99,12 +117,17 @@
     </label>
   </div>
 
+  <div class="server-row">
+    <div class="label">Server URL</div>
+    <input type="text" id="server-url" placeholder="https://…" />
+  </div>
+
   <div class="status-row">
     <div class="label">App connection</div>
     <div id="status-text" class="status-ok">Checking…</div>
   </div>
 
-  <a href="http://localhost:5173" target="_blank" class="open-app">Open Vocabulary App ↗</a>
+  <a id="open-app" href="#" target="_blank" class="open-app">Open Vocabulary App ↗</a>
 
   <script src="popup.js"></script>
 </body>

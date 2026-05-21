@@ -54,16 +54,21 @@ def get_lists(builtin: Optional[bool] = Query(None)):
 
 
 @router.get("/lists/{list_id}/words", response_model=list[WordResponse])
-def get_words(list_id: int):
+def get_words(list_id: int, exclude_mastered: bool = False):
     conn = get_db()
     row = conn.execute("SELECT id FROM word_lists WHERE id = ?", (list_id,)).fetchone()
     if not row:
         conn.close()
         raise HTTPException(status_code=404, detail="Word list not found")
-    words = conn.execute("""
+    mastery_filter = """
+        AND w.manually_excluded = 0
+        AND (SELECT COALESCE(SUM(wp.mastered), 0) FROM word_progress wp WHERE wp.word_id = w.id) < 4
+    """ if exclude_mastered else ""
+    words = conn.execute(f"""
         SELECT w.*, w.manually_excluded as learned
         FROM words w
         WHERE w.list_id = ?
+        {mastery_filter}
         ORDER BY w.source_word
     """, (list_id,)).fetchall()
     conn.close()

@@ -1,8 +1,11 @@
+import os
+import shutil
+import tempfile
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
-from database import init_db, seed_builtin_lists
+from fastapi.responses import FileResponse, Response
+from database import DB_PATH, init_db, seed_builtin_lists
 from routers import words, upload, game, progress, tts
 
 
@@ -17,9 +20,9 @@ app = FastAPI(title="Language Learning App", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["*"],
     allow_origin_regex=r"chrome-extension://.*|moz-extension://.*",
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -48,3 +51,58 @@ app.include_router(tts.router)
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+_APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+
+
+@app.get("/api/auth-status")
+def auth_status():
+    return {"required": bool(_APP_PASSWORD)}
+
+
+@app.post("/api/login")
+async def login(request: Request):
+    body = await request.json()
+    if not _APP_PASSWORD or body.get("password") == _APP_PASSWORD:
+        return {"ok": True}
+    raise HTTPException(status_code=401, detail="Wrong password")
+
+
+@app.get("/api/backup")
+def backup_db(key: str = ""):
+    if _APP_PASSWORD and key != _APP_PASSWORD:
+        raise HTTPException(status_code=403, detail="Invalid key")
+    if not DB_PATH.exists():
+        raise HTTPException(status_code=404, detail="Database not found")
+    return FileResponse(str(DB_PATH), filename="learning.db", media_type="application/octet-stream")
+
+
+@app.post("/api/restore")
+async def restore_db(key: str = "", file: UploadFile = File(...)):
+    if _APP_PASSWORD and key != _APP_PASSWORD:
+        raise HTTPException(status_code=403, detail="Invalid key")
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
+    try:
+        shutil.copyfileobj(file.file, tmp)
+        tmp.close()
+        shutil.move(tmp.name, str(DB_PATH))
+    except Exception:
+        os.unlink(tmp.name)
+        raise HTTPException(status_code=500, detail="Restore failed")
+    return {"status": "restored"}
+
+
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    if os.path.isdir(_static_dir):
+        candidate = os.path.normpath(os.path.join(_static_dir, full_path))
+        if candidate.startswith(_static_dir) and os.path.isfile(candidate):
+            return FileResponse(candidate)
+        index = os.path.join(_static_dir, "index.html")
+        if os.path.isfile(index):
+            return FileResponse(index)
+    raise HTTPException(status_code=404, detail="Not found")

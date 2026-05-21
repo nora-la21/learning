@@ -20,6 +20,7 @@ interface Props {
   mode: GameMode
   sessionSize?: number | null
   wordIds?: number[]
+  skipMasteredModes?: boolean
   onBack: () => void
 }
 
@@ -32,7 +33,7 @@ type FeedbackState = {
 
 export type AnswerFeedback = { correct: boolean; almost: boolean; correctAnswer: string } | null
 
-export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onBack }: Props) {
+export default function GameShell({ listId, mode, sessionSize = 10, wordIds, skipMasteredModes = false, onBack }: Props) {
   const effectiveSize = sessionSize ?? 9999
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [question, setQuestion] = useState<GameQuestion | null>(null)
@@ -46,10 +47,11 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [answering, setAnswering] = useState(false)
+  const answeringRef = useRef(false)
   const [waitingForNext, setWaitingForNext] = useState(false)
   const pendingAdvance = useRef<(() => void) | null>(null)
   const navigate = useNavigate()
-  const { speak, preload } = useSpeech()
+  const { speak, preload, cancel } = useSpeech()
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -59,6 +61,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.repeat) return
       if (!waitingForNext) return
       if (e.key !== 'Enter' && e.key !== ' ') return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
@@ -77,7 +80,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
     setXp(0)
     setStreak(0)
     try {
-      const session = await api.startGame(listId, mode, effectiveSize, wordIds)
+      const session = await api.startGame(listId, mode, effectiveSize, wordIds, skipMasteredModes)
       setSessionId(session.session_id)
       setTotal(session.total)
       await loadNext(session.session_id)
@@ -102,7 +105,8 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
   }
 
   const handleSkip = async () => {
-    if (!sessionId || !question || answering) return
+    if (!sessionId || !question || answeringRef.current) return
+    answeringRef.current = true
     setAnswering(true)
     try {
       // Permanently mark as known so it never appears again
@@ -111,28 +115,33 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
       setProgress(result.progress_index)
       if (result.progress_index >= result.total) {
         setFinished(true)
+        answeringRef.current = false
         setAnswering(false)
         return
       }
       if (result.mode_complete && result.new_mode) {
         setModeTransition(MODE_LABELS[result.new_mode] ?? result.new_mode)
         setTimeout(async () => {
-          setModeTransition(null)
           await loadNext(sessionId)
+          setModeTransition(null)
+          answeringRef.current = false
           setAnswering(false)
         }, 1800)
       } else {
         await loadNext(sessionId)
+        answeringRef.current = false
         setAnswering(false)
       }
     } catch (e: any) {
       setError(e.message)
+      answeringRef.current = false
       setAnswering(false)
     }
   }
 
   const handleAnswer = async (chosen: string, timeMs: number) => {
-    if (!sessionId || !question || answering) return
+    if (!sessionId || !question || answeringRef.current) return
+    answeringRef.current = true
     setAnswering(true)
 
     try {
@@ -161,25 +170,31 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
       })
 
       const advance = async () => {
+        cancel()
         setWaitingForNext(false)
         pendingAdvance.current = null
-        setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
 
         if (result.progress_index >= result.total) {
+          setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
           setFinished(true)
+          answeringRef.current = false
           setAnswering(false)
           return
         }
 
         if (result.mode_complete && result.new_mode) {
           setModeTransition(MODE_LABELS[result.new_mode] ?? result.new_mode)
+          setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
           setTimeout(async () => {
-            setModeTransition(null)
             await loadNext(sessionId)
+            setModeTransition(null)
+            answeringRef.current = false
             setAnswering(false)
           }, 1800)
         } else {
+          setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
           await loadNext(sessionId)
+          answeringRef.current = false
           setAnswering(false)
         }
       }
@@ -188,6 +203,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
       setWaitingForNext(true)
     } catch (e: any) {
       setError(e.message)
+      answeringRef.current = false
       setAnswering(false)
     }
   }
