@@ -56,6 +56,7 @@ export default function HomePage() {
   const [myLists, setMyLists] = useState<WordList[]>([])
   const [showUpload, setShowUpload] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [importMsg, setImportMsg] = useState('')
   const navigate = useNavigate()
 
   const load = async () => {
@@ -86,6 +87,27 @@ export default function HomePage() {
     navigate(`/learn/${listId}`)
   }
 
+  const handleImportDb = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    const password = localStorage.getItem('app_auth') ?? ''
+    const form = new FormData()
+    form.append('file', file)
+    setImportMsg('Importing…')
+    try {
+      const res = await fetch(`/api/restore?key=${encodeURIComponent(password)}`, { method: 'POST', body: form })
+      if (res.ok) {
+        setImportMsg('Done! Reloading…')
+        setTimeout(() => window.location.reload(), 1000)
+      } else {
+        setImportMsg('Import failed')
+      }
+    } catch {
+      setImportMsg('Import failed')
+    }
+    e.target.value = ''
+  }
+
   const lists = tab === 'builtin' ? builtinLists : myLists
 
   return (
@@ -97,14 +119,21 @@ export default function HomePage() {
             <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Vocabulary</h1>
             <p className="text-gray-500 dark:text-gray-400 mt-1">Learn Dutch with your own words</p>
           </div>
-          {tab === 'my' && (
-            <button
-              onClick={() => setShowUpload(v => !v)}
-              className="px-5 py-2.5 bg-violet-600 text-white rounded-xl font-semibold hover:bg-violet-700 transition shadow-sm"
-            >
-              {showUpload ? '✕ Close' : '+ Upload words'}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            <label className="cursor-pointer px-3 py-2.5 bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300 rounded-xl text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-700 transition" title="Import database">
+              ⬆ Import DB
+              <input type="file" accept=".db" className="hidden" onChange={handleImportDb} />
+            </label>
+            {importMsg && <span className="text-xs text-gray-500">{importMsg}</span>}
+            {tab === 'my' && (
+              <button
+                onClick={() => setShowUpload(v => !v)}
+                className="px-5 py-2.5 bg-violet-600 text-white rounded-xl font-semibold hover:bg-violet-700 transition shadow-sm"
+              >
+                {showUpload ? '✕ Close' : '+ Upload words'}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Voice picker */}
