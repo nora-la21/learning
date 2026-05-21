@@ -1,7 +1,8 @@
+import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse, Response
 from database import init_db, seed_builtin_lists
 from routers import words, upload, game, progress, tts
 
@@ -48,3 +49,19 @@ app.include_router(tts.router)
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+_static_dir = os.path.join(os.path.dirname(__file__), "static")
+
+
+@app.get("/{full_path:path}")
+async def serve_spa(full_path: str):
+    if os.path.isdir(_static_dir):
+        # Serve real static files (e.g. favicon, assets)
+        candidate = os.path.normpath(os.path.join(_static_dir, full_path))
+        if candidate.startswith(_static_dir) and os.path.isfile(candidate):
+            return FileResponse(candidate)
+        index = os.path.join(_static_dir, "index.html")
+        if os.path.isfile(index):
+            return FileResponse(index)
+    raise HTTPException(status_code=404, detail="Not found")
