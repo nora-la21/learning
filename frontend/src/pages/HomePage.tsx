@@ -164,13 +164,15 @@ export default function HomePage() {
                 level={level}
                 lists={group}
                 defaultOpen={i === 0}
-                onPractice={id => navigate(`/learn/${id}`)}
-                onPracticeSelected={(id, wordIds) => navigate(`/learn/${id}?words=${wordIds.join(',')}`)}
-                onStats={id => navigate(`/progress/${id}`)}
-                onPracticeSets={async (listIds, excludeMastered) => {
-                  const wordArrays = await Promise.all(listIds.map(id => api.getWords(id, excludeMastered)))
-                  const wordIds = wordArrays.flat().map(w => w.id)
-                  navigate(`/learn/${listIds[0]}?words=${wordIds.join(',')}`)
+                onPractice={id => { navigate(`/learn/${id}`) }}
+                onPracticeSelected={(id, wordIds) => { navigate(`/learn/${id}?words=${wordIds.join(',')}`) }}
+                onStats={id => { navigate(`/progress/${id}`) }}
+                onPracticeSets={(listIds, excludeMastered) => {
+                  void (async () => {
+                    const wordArrays = await Promise.all(listIds.map(id => api.getWords(id, excludeMastered)))
+                    const wordIds = wordArrays.flat().map(w => w.id)
+                    navigate(`/learn/${listIds[0]}?words=${wordIds.join(',')}`)
+                  })()
                 }}
               />
             ))}
@@ -182,9 +184,9 @@ export default function HomePage() {
                 key={list.id}
                 list={list}
                 flag={FLAG[list.source_lang] ?? '📖'}
-                onPractice={() => navigate(`/learn/${list.id}`)}
-                onPracticeSelected={(_, wordIds) => navigate(`/learn/${list.id}?words=${wordIds.join(',')}`)}
-                onStats={() => navigate(`/progress/${list.id}`)}
+                onPractice={() => { navigate(`/learn/${list.id}`) }}
+                onPracticeSelected={(wordIds: number[]) => { navigate(`/learn/${list.id}?words=${wordIds.join(',')}`) }}
+                onStats={() => { navigate(`/progress/${list.id}`) }}
                 onDelete={() => deleteList(list.id)}
               />
             ))}
@@ -408,7 +410,6 @@ function ListCard({
   const resetSelected = async () => {
     if (selected.size === 0) return
     await api.resetProgress(Array.from(selected))
-    // Refresh word learned status
     const fresh = await api.getWords(list.id)
     setWords(fresh)
     setSelected(new Set())
