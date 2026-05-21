@@ -53,12 +53,25 @@ def health():
     return {"status": "ok"}
 
 
-_ADMIN_KEY = os.environ.get("ADMIN_KEY", "")
+_APP_PASSWORD = os.environ.get("APP_PASSWORD", "")
+
+
+@app.get("/api/auth-status")
+def auth_status():
+    return {"required": bool(_APP_PASSWORD)}
+
+
+@app.post("/api/login")
+async def login(request: Request):
+    body = await request.json()
+    if not _APP_PASSWORD or body.get("password") == _APP_PASSWORD:
+        return {"ok": True}
+    raise HTTPException(status_code=401, detail="Wrong password")
 
 
 @app.get("/api/backup")
 def backup_db(key: str = ""):
-    if not _ADMIN_KEY or key != _ADMIN_KEY:
+    if _APP_PASSWORD and key != _APP_PASSWORD:
         raise HTTPException(status_code=403, detail="Invalid key")
     if not DB_PATH.exists():
         raise HTTPException(status_code=404, detail="Database not found")
@@ -67,7 +80,7 @@ def backup_db(key: str = ""):
 
 @app.post("/api/restore")
 async def restore_db(key: str = "", file: UploadFile = File(...)):
-    if not _ADMIN_KEY or key != _ADMIN_KEY:
+    if _APP_PASSWORD and key != _APP_PASSWORD:
         raise HTTPException(status_code=403, detail="Invalid key")
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
     try:
