@@ -38,9 +38,8 @@ export default function MultipleChoice({ question, onAnswer, feedback, showSourc
     return () => window.removeEventListener('keydown', handler)
   }, [question.question_id, chosen])
 
-  const handleOption = (opt: string, lang: string) => {
+  const handleOption = (opt: string, _lang: string) => {
     if (chosen) return
-    if (lang === question.source_lang) speak(opt, lang)
     setChosen(opt)
     setTimeout(() => {
       onAnswer(opt, Date.now() - startTime.current)
