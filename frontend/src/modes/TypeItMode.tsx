@@ -35,18 +35,18 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-3">
+        <p className="text-[11px] uppercase tracking-[.14em] text-ghost font-medium mb-3">
           {isReverse ? 'Type in Dutch' : 'Type in English'}
         </p>
         <div className="flex items-center justify-center gap-3">
-          <span className="text-4xl font-bold text-gray-900 dark:text-white">{question.prompt}</span>
+          <span className="text-4xl font-bold text-ink">{question.prompt}</span>
           <button
             onClick={() => speak(question.prompt, question.prompt_lang)}
-            className="text-gray-400 hover:text-violet-500 transition-colors text-2xl"
+            className="text-ghost hover:text-accent transition-colors text-xl"
             title="Hear pronunciation"
           >🔊</button>
         </div>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+        <p className="text-sm text-muted mt-2">
           {isReverse ? 'Type the Dutch word' : 'Type the English translation'}
         </p>
         {feedback && question.image_keyword && (
@@ -66,21 +66,21 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
           className={`
             w-full px-5 py-4 rounded-xl text-lg border-2 focus:outline-none transition-colors
             ${submitted && !feedback ? 'opacity-60 cursor-not-allowed' : ''}
-            bg-white dark:bg-gray-800 text-gray-900 dark:text-white
-            ${feedback?.correct  ? 'border-green-500' :
+            bg-surface text-ink
+            ${feedback?.correct  ? 'border-moss' :
               feedback?.almost   ? 'border-amber-500' :
               feedback && !feedback.correct ? 'border-red-500' :
-              'border-gray-300 dark:border-gray-600 focus:border-violet-500'}
+              'border-border focus:border-ink'}
           `}
         />
         <button
           onClick={submit}
           disabled={!input.trim() || submitted}
-          className={`w-full py-3 rounded-xl text-white font-semibold transition disabled:cursor-not-allowed
-            ${feedback?.correct  ? 'bg-green-500' :
+          className={`w-full py-3 rounded-[9px] text-white font-semibold transition disabled:cursor-not-allowed
+            ${feedback?.correct  ? 'bg-moss' :
               feedback?.almost   ? 'bg-amber-500' :
               feedback           ? 'bg-red-500' :
-              'bg-violet-600 hover:bg-violet-700 disabled:opacity-50'}`}
+              'bg-ink hover:opacity-80 disabled:opacity-50'}`}
         >
           {!submitted      ? 'Check ↵' :
            !feedback       ? 'Checking…' :
@@ -89,9 +89,9 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
                               '✗ Wrong'}
         </button>
         {feedback && !feedback.correct && (
-          <div className="px-4 py-2.5 rounded-xl bg-red-50 dark:bg-red-950 border border-red-200 dark:border-red-800 text-center">
-            <span className="text-xs text-red-400 uppercase tracking-wide font-semibold">Correct answer</span>
-            <p className="text-red-700 dark:text-red-300 font-semibold mt-0.5">{feedback.correctAnswer}</p>
+          <div className="px-4 py-2.5 rounded-xl bg-red-50 border border-red-200 text-center">
+            <span className="text-[11px] text-red-400 uppercase tracking-[.12em] font-semibold">Correct answer</span>
+            <p className="text-red-700 font-semibold mt-0.5">{feedback.correctAnswer}</p>
           </div>
         )}
       </div>
