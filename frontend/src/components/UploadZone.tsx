@@ -88,24 +88,24 @@ export default function UploadZone({ onConfirmed }: Props) {
 
   if (preview) {
     return (
-      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 space-y-4">
-        <h3 className="font-semibold text-gray-900 dark:text-white text-lg">
+      <div className="bg-surface rounded-2xl border border-border p-6 space-y-4">
+        <h3 className="font-semibold text-ink text-lg">
           Review {editableWords.length} word pairs
         </h3>
 
         <div className="flex flex-wrap gap-3">
           <div className="flex-1 min-w-32">
-            <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">List name</label>
+            <label className="text-[11px] uppercase tracking-[.12em] text-ghost mb-1 block">List name</label>
             <input
-              className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="w-full px-3 py-2 rounded-lg border border-border bg-surface text-ink text-sm focus:outline-none focus:border-ink transition-colors"
               value={listName}
               onChange={e => setListName(e.target.value)}
             />
           </div>
           <div>
-            <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Learning</label>
+            <label className="text-[11px] uppercase tracking-[.12em] text-ghost mb-1 block">Learning</label>
             <select
-              className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="px-3 py-2 rounded-lg border border-border bg-surface text-ink text-sm focus:outline-none focus:border-ink transition-colors"
               value={sourceLang}
               onChange={e => setSourceLang(e.target.value)}
             >
@@ -113,9 +113,9 @@ export default function UploadZone({ onConfirmed }: Props) {
             </select>
           </div>
           <div>
-            <label className="text-xs text-gray-500 dark:text-gray-400 mb-1 block">Translation</label>
+            <label className="text-[11px] uppercase tracking-[.12em] text-ghost mb-1 block">Translation</label>
             <select
-              className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              className="px-3 py-2 rounded-lg border border-border bg-surface text-ink text-sm focus:outline-none focus:border-ink transition-colors"
               value={targetLang}
               onChange={e => setTargetLang(e.target.value)}
             >
@@ -124,28 +124,28 @@ export default function UploadZone({ onConfirmed }: Props) {
           </div>
         </div>
 
-        <div className="max-h-80 overflow-y-auto rounded-lg border border-gray-200 dark:border-gray-700">
+        <div className="max-h-80 overflow-y-auto rounded-lg border border-border">
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-gray-750 sticky top-0">
+            <thead className="bg-paper sticky top-0">
               <tr>
-                <th className="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Word to learn</th>
-                <th className="px-3 py-2 text-left text-gray-500 dark:text-gray-400 font-medium">Translation</th>
+                <th className="px-3 py-2 text-left text-[11px] uppercase tracking-[.12em] text-ghost font-medium">Word to learn</th>
+                <th className="px-3 py-2 text-left text-[11px] uppercase tracking-[.12em] text-ghost font-medium">Translation</th>
                 <th className="w-8" />
               </tr>
             </thead>
             <tbody>
               {editableWords.map((w, i) => (
-                <tr key={i} className="border-t border-gray-100 dark:border-gray-700">
+                <tr key={i} className="border-t border-border">
                   <td className="px-2 py-1">
                     <input
-                      className="w-full px-2 py-1 rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-violet-400 focus:outline-none bg-transparent text-gray-900 dark:text-white"
+                      className="w-full px-2 py-1 rounded border border-transparent hover:border-border focus:border-ink focus:outline-none bg-transparent text-ink transition-colors"
                       value={w.source_word}
                       onChange={e => updateWord(i, 'source_word', e.target.value)}
                     />
                   </td>
                   <td className="px-2 py-1">
                     <input
-                      className="w-full px-2 py-1 rounded border border-transparent hover:border-gray-300 dark:hover:border-gray-600 focus:border-violet-400 focus:outline-none bg-transparent text-gray-900 dark:text-white"
+                      className="w-full px-2 py-1 rounded border border-transparent hover:border-border focus:border-ink focus:outline-none bg-transparent text-ink transition-colors"
                       value={w.target_word}
                       onChange={e => updateWord(i, 'target_word', e.target.value)}
                     />
@@ -153,7 +153,7 @@ export default function UploadZone({ onConfirmed }: Props) {
                   <td className="px-1">
                     <button
                       onClick={() => removeWord(i)}
-                      className="text-gray-400 hover:text-red-500 transition-colors p-1"
+                      className="text-ghost hover:text-red-500 transition-colors p-1"
                       title="Remove"
                     >×</button>
                   </td>
@@ -165,7 +165,7 @@ export default function UploadZone({ onConfirmed }: Props) {
 
         <button
           onClick={addRow}
-          className="text-sm text-violet-600 dark:text-violet-400 hover:underline"
+          className="text-sm text-accent hover:underline"
         >+ Add row</button>
 
         {error && <p className="text-red-500 text-sm">{error}</p>}
@@ -173,12 +173,12 @@ export default function UploadZone({ onConfirmed }: Props) {
         <div className="flex gap-3">
           <button
             onClick={() => { setPreview(null); setEditableWords([]) }}
-            className="flex-1 py-2 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+            className="flex-1 py-2 rounded-[9px] border border-border text-muted hover:bg-paper transition"
           >Cancel</button>
           <button
             onClick={confirm}
             disabled={loading || !listName.trim() || editableWords.length < 4}
-            className="flex-1 py-2 rounded-xl bg-violet-600 text-white font-semibold hover:bg-violet-700 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="flex-1 py-2 rounded-[9px] bg-ink text-white font-semibold hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             {loading ? 'Saving…' : `Save ${editableWords.length} words`}
           </button>
@@ -191,8 +191,8 @@ export default function UploadZone({ onConfirmed }: Props) {
     <div
       className={`border-2 border-dashed rounded-2xl p-10 text-center cursor-pointer transition-colors ${
         dragging
-          ? 'border-violet-400 bg-violet-50 dark:bg-violet-950'
-          : 'border-gray-300 dark:border-gray-600 hover:border-violet-400 hover:bg-gray-50 dark:hover:bg-gray-800'
+          ? 'border-accent bg-accent/5'
+          : 'border-border hover:border-accent hover:bg-paper'
       }`}
       onClick={() => inputRef.current?.click()}
       onDragOver={e => { e.preventDefault(); setDragging(true) }}
@@ -208,12 +208,12 @@ export default function UploadZone({ onConfirmed }: Props) {
       />
       <div className="text-4xl mb-3">📂</div>
       {loading ? (
-        <p className="text-gray-600 dark:text-gray-400">Parsing file…</p>
+        <p className="text-muted">Parsing file…</p>
       ) : (
         <>
-          <p className="font-semibold text-gray-700 dark:text-gray-300">Drop your vocabulary file here</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">PDF, Word (.docx), CSV, or TXT</p>
-          <p className="text-xs text-gray-400 dark:text-gray-500 mt-2">Format: word, translation (one per line)</p>
+          <p className="font-semibold text-ink">Drop your vocabulary file here</p>
+          <p className="text-sm text-muted mt-1">PDF, Word (.docx), CSV, or TXT</p>
+          <p className="text-xs text-ghost mt-2">Format: word, translation (one per line)</p>
         </>
       )}
       {error && <p className="text-red-500 text-sm mt-3">{error}</p>}

@@ -71,18 +71,18 @@ export default function ListeningMode({ question, onAnswer, feedback }: Props) {
   return (
     <div className="space-y-6">
       <div className="text-center space-y-4">
-        <p className="text-gray-500 dark:text-gray-400 text-sm font-medium uppercase tracking-wide">What does it mean?</p>
+        <p className="text-[11px] uppercase tracking-[.14em] text-ghost font-medium">What does it mean?</p>
         <button
           onClick={replay}
-          className="w-24 h-24 rounded-full bg-violet-600 text-white text-4xl hover:bg-violet-700 active:scale-95 transition-all shadow-lg mx-auto flex items-center justify-center"
+          className="w-24 h-24 rounded-full bg-ink text-white text-4xl hover:opacity-80 active:scale-95 transition-all shadow-lg mx-auto flex items-center justify-center"
           title="Replay"
         >🔊</button>
-        <p className="text-xs text-gray-400">Click to replay</p>
+        <p className="text-xs text-ghost">Click to replay</p>
         {feedback && question.image_keyword && (
           <WordImage keyword={question.image_keyword} wordId={question.word_id} />
         )}
         {revealed && (
-          <div className="text-xl font-bold text-gray-800 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 rounded-xl px-6 py-3 inline-block">
+          <div className="text-xl font-bold text-ink bg-track rounded-xl px-6 py-3 inline-block">
             {question.prompt}
           </div>
         )}
@@ -100,16 +100,16 @@ export default function ListeningMode({ question, onAnswer, feedback }: Props) {
               onClick={() => handleOption(opt, lang)}
               disabled={!!chosen}
               className={`
-                p-4 rounded-xl text-left font-medium transition-all border-2 text-sm md:text-base relative
-                ${state === 'idle'     ? 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-violet-400 hover:bg-violet-50 dark:hover:bg-violet-950 text-gray-900 dark:text-white' : ''}
-                ${state === 'selected' ? 'bg-violet-100 dark:bg-violet-900 border-violet-400 text-violet-900 dark:text-violet-100' : ''}
-                ${state === 'correct'  ? 'bg-green-100 dark:bg-green-900 border-green-500 text-green-900 dark:text-green-100' : ''}
-                ${state === 'wrong'    ? 'bg-red-100 dark:bg-red-900 border-red-500 text-red-900 dark:text-red-100' : ''}
-                ${state === 'almost'   ? 'bg-amber-100 dark:bg-amber-900 border-amber-500 text-amber-900 dark:text-amber-100' : ''}
-                ${state === 'dim'      ? 'bg-gray-50 dark:bg-gray-850 border-gray-200 dark:border-gray-700 text-gray-400 dark:text-gray-500' : ''}
+                p-4 rounded-[11px] text-left font-medium transition-all border text-sm md:text-base relative
+                ${state === 'idle'     ? 'bg-surface border-border hover:border-accent text-ink' : ''}
+                ${state === 'selected' ? 'bg-accent/10 border-accent text-ink' : ''}
+                ${state === 'correct'  ? 'bg-green-100 border-moss text-green-900' : ''}
+                ${state === 'wrong'    ? 'bg-red-100 border-red-500 text-red-900' : ''}
+                ${state === 'almost'   ? 'bg-amber-100 border-amber-500 text-amber-900' : ''}
+                ${state === 'dim'      ? 'bg-paper border-border text-ghost' : ''}
               `}
             >
-              <span className={`absolute top-1.5 right-2 text-xs font-bold ${state === 'idle' ? 'opacity-30' : 'opacity-10'}`}>{i + 1}</span>
+              <span className={`absolute top-1.5 right-2 text-xs font-mono ${state === 'idle' ? 'opacity-25 text-ghost' : 'opacity-10'}`}>{i + 1}</span>
               {opt}
             </button>
           )
