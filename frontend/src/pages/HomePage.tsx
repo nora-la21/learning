@@ -101,7 +101,8 @@ export default function HomePage() {
         setImportMsg('Done! Reloading…')
         setTimeout(() => window.location.reload(), 1000)
       } else {
-        setImportMsg('Import failed')
+        const detail = await res.json().then(d => d?.detail).catch(() => null)
+        setImportMsg(detail || 'Import failed')
       }
     } catch {
       setImportMsg('Import failed')

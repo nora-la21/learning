@@ -5,7 +5,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
-from database import DB_PATH, init_db, seed_builtin_lists
+from database import DB_PATH, USE_POSTGRES, init_db, seed_builtin_lists
 from routers import words, upload, game, progress, tts
 
 
@@ -69,10 +69,18 @@ async def login(request: Request):
     raise HTTPException(status_code=401, detail="Wrong password")
 
 
+_PG_FILE_TRANSFER = (
+    "This server stores data in Postgres, so there is no database file to "
+    "download or replace. Your progress is saved on the server already."
+)
+
+
 @app.get("/api/backup")
 def backup_db(key: str = ""):
     if _APP_PASSWORD and key != _APP_PASSWORD:
         raise HTTPException(status_code=403, detail="Invalid key")
+    if USE_POSTGRES:
+        raise HTTPException(status_code=501, detail=_PG_FILE_TRANSFER)
     if not DB_PATH.exists():
         raise HTTPException(status_code=404, detail="Database not found")
     return FileResponse(str(DB_PATH), filename="learning.db", media_type="application/octet-stream")
@@ -82,6 +90,10 @@ def backup_db(key: str = ""):
 async def restore_db(key: str = "", file: UploadFile = File(...)):
     if _APP_PASSWORD and key != _APP_PASSWORD:
         raise HTTPException(status_code=403, detail="Invalid key")
+    # Refuse rather than write a file nothing reads: moving the upload into place
+    # would report success while leaving the live Postgres data untouched.
+    if USE_POSTGRES:
+        raise HTTPException(status_code=501, detail=_PG_FILE_TRANSFER)
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".db")
     try:
         shutil.copyfileobj(file.file, tmp)
