@@ -1,4 +1,4 @@
-const DEFAULT_SERVER = 'https://learning-production-fbb6.up.railway.app'
+const DEFAULT_SERVER = 'https://learning-steel-ten.vercel.app'
 
 async function getServerUrl() {
   return new Promise(res =>
@@ -38,17 +38,31 @@ function updateLabel(enabled) {
   document.getElementById('toggle-label').textContent = enabled ? 'Popup enabled' : 'Popup disabled'
 }
 
+async function ping(server, ms) {
+  const r = await fetch(`${server}/api/health`, { signal: AbortSignal.timeout(ms) })
+  if (!r.ok) throw new Error(`HTTP ${r.status}`)
+  return true
+}
+
 async function checkHealth() {
   const el = document.getElementById('status-text')
   const server = await getServerUrl()
+
+  el.textContent = 'Checking…'
+  el.className = ''
   try {
-    const r = await fetch(`${server}/api/health`, { signal: AbortSignal.timeout(3000) })
-    if (r.ok) {
-      el.textContent = '✓ Connected'
-      el.className = 'status-ok'
-    } else {
-      throw new Error()
+    // A sleeping free-tier backend needs ~30-60s to wake, far longer than a
+    // healthy reply takes. Probe briefly first so the common case stays snappy,
+    // then wait out a cold start rather than calling it unreachable.
+    try {
+      await ping(server, 4000)
+    } catch {
+      el.textContent = '⏳ Waking server… (up to 60s)'
+      el.className = ''
+      await ping(server, 60000)
     }
+    el.textContent = '✓ Connected'
+    el.className = 'status-ok'
   } catch {
     el.textContent = '✗ Not reachable'
     el.className = 'status-err'

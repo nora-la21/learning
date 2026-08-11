@@ -1,4 +1,4 @@
-const DEFAULT_SERVER = 'https://learning-production-fbb6.up.railway.app'
+const DEFAULT_SERVER = 'https://learning-steel-ten.vercel.app'
 
 function getAPI() {
   return new Promise(res =>
