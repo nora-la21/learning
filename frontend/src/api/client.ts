@@ -63,11 +63,14 @@ export const api = {
       body: JSON.stringify({ list_id: listId, mode, session_size: sessionSize, word_ids: wordIds ?? null, skip_mastered_modes: skipMasteredModes }),
     }),
   nextQuestion: (sessionId: string) => req<GameQuestion>(`/game/next?session_id=${sessionId}`),
-  submitAnswer: (sessionId: string, wordId: number, chosen: string, timeMs: number): Promise<GameAnswerResponse> =>
+  submitAnswer: (sessionId: string, wordId: number, chosen: string, timeMs: number, knownOnTypeMastery = false): Promise<GameAnswerResponse> =>
     req<GameAnswerResponse>('/game/answer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: sessionId, word_id: wordId, chosen, time_ms: timeMs }),
+      body: JSON.stringify({
+        session_id: sessionId, word_id: wordId, chosen, time_ms: timeMs,
+        known_on_type_mastery: knownOnTypeMastery,
+      }),
     }),
   skipWord: (sessionId: string, wordId: number) =>
     req<{ progress_index: number; total: number; mode_complete: boolean; new_mode: string | null }>

@@ -18,6 +18,9 @@ export default function LearnPage() {
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null)
   const [sessionSize, setSessionSize] = useState<number | null>(10)
   const [skipMasteredModes, setSkipMasteredModes] = useState(false)
+  const [knownOnType, setKnownOnType] = useState(
+    () => localStorage.getItem('known-on-type-mastery') === 'true'
+  )
   const navigate = useNavigate()
   const id = Number(listId)
 
@@ -77,19 +80,36 @@ export default function LearnPage() {
           </div>
         </div>
 
-        {/* Skip mastered modes toggle */}
-        <label className="flex items-center gap-3 bg-surface rounded-2xl border border-border p-4 mb-5 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={skipMasteredModes}
-            onChange={e => setSkipMasteredModes(e.target.checked)}
-            className="w-4 h-4 cursor-pointer shrink-0"
-          />
-          <div>
-            <span className="text-sm font-medium text-ink">Skip mastered modes</span>
-            <p className="text-xs text-ghost mt-0.5">In All-in-One, skip modes where a word is already mastered</p>
-          </div>
-        </label>
+        {/* Session options */}
+        <div className="bg-surface rounded-2xl border border-border mb-5 divide-y divide-border">
+          <label className="flex items-center gap-3 p-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={skipMasteredModes}
+              onChange={e => setSkipMasteredModes(e.target.checked)}
+              className="w-4 h-4 cursor-pointer shrink-0"
+            />
+            <div>
+              <span className="text-sm font-medium text-ink">Skip mastered modes</span>
+              <p className="text-xs text-ghost mt-0.5">In All-in-One, skip modes where a word is already mastered</p>
+            </div>
+          </label>
+          <label className="flex items-center gap-3 p-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={knownOnType}
+              onChange={e => {
+                setKnownOnType(e.target.checked)
+                localStorage.setItem('known-on-type-mastery', String(e.target.checked))
+              }}
+              className="w-4 h-4 cursor-pointer shrink-0"
+            />
+            <div>
+              <span className="text-sm font-medium text-ink">Count as known once Type It is mastered</span>
+              <p className="text-xs text-ghost mt-0.5">Typing a word from memory enough times marks it known, without finishing the other modes</p>
+            </div>
+          </label>
+        </div>
 
         <div className="space-y-3">
           {MODES.map(m => (

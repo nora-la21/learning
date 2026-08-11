@@ -2,7 +2,15 @@ from datetime import datetime, timezone, timedelta
 from database import get_db
 
 
-def update_word_progress(word_id: int, correct: bool, time_ms: int, mode: str) -> None:
+# Typing the word from memory is the hardest mode, so mastering it is the
+# strongest single signal that a word is genuinely known.
+TYPING_MODE = "reverse_type_it"
+
+
+def update_word_progress(
+    word_id: int, correct: bool, time_ms: int, mode: str,
+    known_on_type_mastery: bool = False,
+) -> None:
     conn = get_db()
     row = conn.execute(
         "SELECT * FROM word_progress WHERE word_id = ? AND mode = ?", (word_id, mode)
@@ -50,6 +58,12 @@ def update_word_progress(word_id: int, correct: bool, time_ms: int, mode: str) -
         "INSERT INTO answer_events (word_id, mode, correct, time_ms) VALUES (?, ?, ?, ?)",
         (word_id, mode, 1 if correct else 0, time_ms),
     )
+
+    if known_on_type_mastery and mastered and mode == TYPING_MODE:
+        conn.execute(
+            "UPDATE words SET manually_excluded = 1 WHERE id = ?", (word_id,)
+        )
+
     conn.commit()
     conn.close()
 

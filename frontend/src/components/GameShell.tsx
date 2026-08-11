@@ -144,7 +144,8 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
 
     try {
       const result: GameAnswerResponse = await api.submitAnswer(
-        sessionId, question.word_id, chosen, timeMs
+        sessionId, question.word_id, chosen, timeMs,
+        localStorage.getItem('known-on-type-mastery') === 'true',
       )
       setXp(x => x + result.xp_gained)
       setStreak(result.streak)

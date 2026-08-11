@@ -104,6 +104,8 @@ class GameAnswerRequest(BaseModel):
     word_id: int
     chosen: str
     time_ms: int
+    # When set, mastering the typing mode marks the whole word as known.
+    known_on_type_mastery: bool = False
 
 
 class GameAnswerResponse(BaseModel):

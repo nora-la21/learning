@@ -41,7 +41,10 @@ def answer_question(body: GameAnswerRequest):
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 
-    update_word_progress(body.word_id, result["correct"], body.time_ms, result["answered_mode"])
+    update_word_progress(
+        body.word_id, result["correct"], body.time_ms, result["answered_mode"],
+        known_on_type_mastery=body.known_on_type_mastery,
+    )
     return GameAnswerResponse(**result)
 
 
