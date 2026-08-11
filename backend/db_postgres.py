@@ -81,6 +81,11 @@ class Cursor:
 class Connection:
     def __init__(self, dsn: str):
         self._conn = psycopg.connect(dsn, row_factory=_row_factory)
+        # Hosted Postgres is usually reached through PgBouncer. In transaction
+        # pooling mode a server connection is reused between statements, so
+        # psycopg's automatic prepared statements would be looked up on a backend
+        # that never declared them ("prepared statement does not exist").
+        self._conn.prepare_threshold = None
 
     def execute(self, sql: str, params=()) -> Cursor:
         sql = translate(sql)
