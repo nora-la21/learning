@@ -77,13 +77,22 @@ def get_word_progress(list_id: int):
         (list_id,),
     ).fetchall()
 
+    # One query for every word's progress rather than one per word: this page used
+    # to issue N+1 round trips, which is unnoticeable on a local file and seconds
+    # of latency against a hosted database.
+    by_word: dict[int, list] = {}
+    if words:
+        ph = ','.join('?' * len(words))
+        for r in conn.execute(
+            "SELECT wp.word_id, wp.mode, wp.repetitions, wp.correct_count, "
+            "wp.incorrect_count, wp.mastered FROM word_progress wp "
+            f"WHERE wp.word_id IN ({ph}) ORDER BY wp.word_id, wp.mode",
+            tuple(w["word_id"] for w in words),
+        ).fetchall():
+            by_word.setdefault(r["word_id"], []).append(r)
+
     result = []
     for word in words:
-        mode_rows = conn.execute(
-            "SELECT mode, repetitions, correct_count, incorrect_count, mastered "
-            "FROM word_progress WHERE word_id = ? ORDER BY mode",
-            (word["word_id"],),
-        ).fetchall()
         modes = [
             WordModeProgress(
                 mode=r["mode"],
@@ -92,7 +101,7 @@ def get_word_progress(list_id: int):
                 incorrect_count=r["incorrect_count"],
                 mastered=bool(r["mastered"]),
             )
-            for r in mode_rows
+            for r in by_word.get(word["word_id"], [])
         ]
         total_correct = sum(m.correct_count for m in modes)
         total_incorrect = sum(m.incorrect_count for m in modes)

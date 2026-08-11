@@ -190,12 +190,12 @@ export default function HomePage() {
           </div>
         ) : tab === 'builtin' ? (
           <div className="space-y-3">
-            {groupByLevel(lists).map(({ level, lists: group }, i) => (
+            {groupByLevel(lists).map(({ level, lists: group }) => (
               <LevelGroup
                 key={level}
                 level={level}
                 lists={group}
-                defaultOpen={i === 0}
+                defaultOpen={false}
                 onPractice={id => { navigate(`/learn/${id}`) }}
                 onPracticeSelected={(id, wordIds) => { navigate(`/learn/${id}?words=${wordIds.join(',')}`) }}
                 onStats={id => { navigate(`/progress/${id}`) }}

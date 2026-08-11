@@ -102,7 +102,7 @@ export default function ListeningMode({ question, onAnswer, feedback }: Props) {
               className={`
                 p-4 rounded-[11px] text-left font-medium transition-all border text-sm md:text-base relative
                 ${state === 'idle'     ? 'bg-surface border-border hover:border-accent text-ink' : ''}
-                ${state === 'selected' ? 'bg-accent/10 border-accent text-ink' : ''}
+                ${state === 'selected' ? 'bg-ink/5 border-ink text-ink' : ''}
                 ${state === 'correct'  ? 'bg-green-100 border-moss text-green-900' : ''}
                 ${state === 'wrong'    ? 'bg-red-100 border-red-500 text-red-900' : ''}
                 ${state === 'almost'   ? 'bg-amber-100 border-amber-500 text-amber-900' : ''}
