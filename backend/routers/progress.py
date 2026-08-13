@@ -187,6 +187,24 @@ def get_due(limit: int = 200, user=Depends(current_user)):
     )
 
 
+@router.post("/reset-all", status_code=204)
+def reset_all_progress(user=Depends(current_user)):
+    """Wipe this account's learning history, keeping its word lists.
+
+    Needed because the first account inherits whatever was practised before
+    accounts existed, which is right for an upgrade and wrong for someone who
+    wanted to start fresh.
+    """
+    uid = user["id"]
+    conn = get_db()
+    try:
+        for table in ("word_progress", "answer_events", "user_word_flags", "game_sessions"):
+            conn.execute(f"DELETE FROM {table} WHERE user_id = ?", (uid,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 @router.get("/heatmap", response_model=list[HeatmapEntry])
 def get_heatmap(user=Depends(current_user)):
     conn = get_db()

@@ -3,8 +3,12 @@
 /* Use class-based dark mode so dark: variants reliably win over hover: variants */
 @custom-variant dark (&:where(.dark, .dark *));
 
-/* Ledger theme tokens (default) */
-@theme inline {
+/* Ledger theme tokens (default).
+   Plain @theme, not @theme inline: `inline` substitutes the literal colour into
+   every utility, so .bg-paper compiles to a hard-coded hex and redefining
+   --color-paper at runtime does nothing. Without it the utilities emit
+   var(--color-paper), which is what lets the theme toggle and dark mode work. */
+@theme {
   --color-paper: #FBF9F5;
   --color-surface: #ffffff;
   --color-ink: #211E1A;

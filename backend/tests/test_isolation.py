@@ -232,3 +232,47 @@ class TestExportIsolation:
         # A separate copy, not the original row.
         mine = [l for l in client.get("/api/lists").json() if l["name"] == "Shared Export"]
         assert mine and mine[0]["id"] != theirs[0]["id"]
+
+
+class TestStartOver:
+    def test_reset_wipes_history_but_keeps_lists(self, client):
+        lid = biggest_builtin(client)["id"]
+        r = client.post("/api/game/start", json={
+            "list_id": lid, "mode": "multiple_choice", "session_size": 5})
+        sid = r.json()["session_id"]
+        q = client.get("/api/game/next", params={"session_id": sid}).json()
+        client.post("/api/game/answer", json={
+            "session_id": sid, "word_id": q["word_id"],
+            "chosen": (q.get("options") or ["zzz"])[0], "time_ms": 700})
+        assert len(client.get("/api/progress/heatmap").json()) > 0
+
+        mine, _ = make_list(client, "Kept After Reset", [("blijven", "to stay")])
+
+        assert client.post("/api/progress/reset-all").status_code == 204
+
+        assert client.get("/api/progress/heatmap").json() == []
+        assert client.get("/api/progress/due").json()["total"] == 0
+        summary = client.get("/api/progress/summary", params={"list_id": lid}).json()
+        assert summary["in_progress"] == 0 and summary["mastered"] == 0
+        assert summary["current_streak"] == 0
+        # Word lists survive; only the learning history goes.
+        assert client.get(f"/api/lists/{mine}/words").status_code == 200
+        assert len(client.get(f"/api/lists/{lid}/words").json()) > 0
+
+    def test_reset_does_not_touch_another_account(self, client, other_client, db):
+        lid = biggest_builtin(client)["id"]
+        word = client.get(f"/api/lists/{lid}/words").json()[3]
+        db.execute("DELETE FROM word_progress WHERE word_id = ?", (word["id"],))
+        db.execute("INSERT INTO word_progress (word_id, mode, user_id) VALUES (?, ?, ?)",
+                   (word["id"], "listening", current_user_id(other_client)))
+        db.commit()
+
+        client.post("/api/progress/reset-all")
+
+        remaining = db.execute(
+            "SELECT COUNT(*) AS n FROM word_progress WHERE user_id = ?",
+            (current_user_id(other_client),)).fetchone()["n"]
+        assert remaining >= 1
+
+    def test_reset_requires_an_account(self, anon_client):
+        assert anon_client.post("/api/progress/reset-all").status_code == 401

@@ -27,15 +27,6 @@ document.getElementById('enabled-toggle').addEventListener('change', e => {
   updateLabel(enabled)
 })
 
-const tokenInput = document.getElementById('access-token')
-if (tokenInput) {
-  chrome.storage.local.get('dvh_token', v => { tokenInput.value = v.dvh_token || '' })
-  tokenInput.addEventListener('change', e => {
-    chrome.storage.local.set({ dvh_token: e.target.value.trim() })
-    checkHealth()
-  })
-}
-
 document.getElementById('server-url').addEventListener('change', e => {
   const server = e.target.value.trim().replace(/\/$/, '')
   chrome.storage.local.set({ dvh_server: server })
@@ -87,12 +78,12 @@ async function checkHealth() {
     }
     const account = await checkAccount(server)
     if (account === 'no-token') {
-      el.textContent = '⚠ Paste your access token below'
+      el.textContent = '⚠ Open the app and sign in'
       el.className = 'status-err'
       return
     }
     if (account === 'bad-token') {
-      el.textContent = '⚠ Token expired — sign in again and re-copy it'
+      el.textContent = '⚠ Session expired — open the app and sign in'
       el.className = 'status-err'
       return
     }

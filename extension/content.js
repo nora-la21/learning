@@ -1,7 +1,31 @@
 const DEFAULT_SERVER = 'https://learning-steel-ten.vercel.app'
 
-// The API requires an account. The token is copied from the web app, which
-// stores it under the same key, via the popup's "Connect account" field.
+// The API requires an account. Rather than asking anyone to copy a token
+// around, this script picks it up from the app itself: content scripts can read
+// the storage of the page they run on, so simply visiting the app while signed
+// in hands the extension its credentials. Signing out clears them again.
+async function syncTokenFromApp() {
+  const server = (await getStorage('dvh_server')) || DEFAULT_SERVER
+  let origin
+  try {
+    origin = new URL(server).origin
+  } catch {
+    return
+  }
+  if (window.location.origin !== origin) return
+
+  const token = window.localStorage.getItem('auth-token') || ''
+  const stored = (await getStorage('dvh_token')) || ''
+  if (token !== stored) chrome.storage.local.set({ dvh_token: token })
+}
+
+// Runs on every page; only does anything on the app's own origin.
+syncTokenFromApp()
+// Signing in or out happens without a reload, so keep watching while we are here.
+if (typeof window !== 'undefined') {
+  setInterval(syncTokenFromApp, 3000)
+}
+
 function getToken() {
   return new Promise(res => chrome.storage.local.get('dvh_token', v => res(v.dvh_token || '')))
 }

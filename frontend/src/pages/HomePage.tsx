@@ -5,7 +5,7 @@ import type { DueSummary, RecentWord, Word, WordList } from '../types'
 import UploadZone from '../components/UploadZone'
 import ThemeToggle from '../components/ThemeToggle'
 import ReminderToggle from '../components/ReminderToggle'
-import { authHeaders, getEmail, getToken, logout } from '../api/auth'
+import { authHeaders, getEmail, logout } from '../api/auth'
 import { useSpeech } from '../hooks/useSpeech'
 
 const FLAG: Record<string, string> = {
@@ -164,21 +164,23 @@ export default function HomePage() {
             {importMsg && <span className="text-xs text-ghost">{importMsg}</span>}
             <button
               onClick={async () => {
-                const token = getToken()
-                if (!token) return
+                if (!confirm(
+                  'Reset all learning progress?\n\n' +
+                  'Your word lists are kept. Practice history, mastery, streak and ' +
+                  'the review schedule are erased. This cannot be undone.'
+                )) return
+                setImportMsg('Resetting…')
                 try {
-                  await navigator.clipboard.writeText(token)
-                  setImportMsg('Token copied — paste it into the extension')
+                  await api.resetAllProgress()
+                  setImportMsg('Progress reset')
+                  setTimeout(() => window.location.reload(), 800)
                 } catch {
-                  // Clipboard needs a secure context and permission; fall back
-                  // to showing it so it can still be copied by hand.
-                  window.prompt('Copy this into the extension:', token)
+                  setImportMsg('Reset failed')
                 }
-                setTimeout(() => setImportMsg(''), 5000)
               }}
-              className="px-3 py-2 border border-border text-muted rounded-lg text-xs font-medium hover:text-ink hover:border-ink transition"
-              title="Copy an access token so the browser extension can save words to your account"
-            >Extension token</button>
+              className="px-3 py-2 border border-border text-muted rounded-lg text-xs font-medium hover:text-red-500 hover:border-red-500 transition"
+              title="Erase all practice history and start from zero"
+            >Start over</button>
             <button
               onClick={logout}
               className="px-3 py-2 border border-border text-muted rounded-lg text-xs font-medium hover:text-ink hover:border-ink transition"

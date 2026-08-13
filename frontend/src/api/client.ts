@@ -90,5 +90,6 @@ export const api = {
   getWordProgress: (listId: number) => req<WordProgressDetail[]>(`/progress/words?list_id=${listId}`),
   getHeatmap: () => req<HeatmapEntry[]>('/progress/heatmap'),
   getDue: () => req<DueSummary>('/progress/due'),
+  resetAllProgress: () => req<void>('/progress/reset-all', { method: 'POST' }),
   getRecentWords: (days = 7) => req<RecentWord[]>(`/words/recent?days=${days}`),
 }
