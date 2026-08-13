@@ -1,3 +1,4 @@
+import json
 import os
 import shutil
 import tempfile
@@ -7,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from database import DB_PATH, USE_POSTGRES, init_db, seed_builtin_lists
 from routers import words, upload, game, progress, tts
+from services.transfer import export_all, import_all
 
 
 @asynccontextmanager
@@ -71,8 +73,40 @@ async def login(request: Request):
 
 _PG_FILE_TRANSFER = (
     "This server stores data in Postgres, so there is no database file to "
-    "download or replace. Your progress is saved on the server already."
+    "replace. Use Export data to download a copy of your vocabulary and progress."
 )
+
+
+@app.get("/api/export")
+def export_data(key: str = ""):
+    """Portable JSON copy of everything the user owns.
+
+    Works on either backend, unlike the raw database download, so there is
+    always a way to get your words and progress out.
+    """
+    if _APP_PASSWORD and key != _APP_PASSWORD:
+        raise HTTPException(status_code=403, detail="Invalid key")
+    payload = export_all()
+    return Response(
+        content=json.dumps(payload, indent=2, ensure_ascii=False),
+        media_type="application/json",
+        headers={"Content-Disposition": 'attachment; filename="vocabulary-export.json"'},
+    )
+
+
+@app.post("/api/import")
+async def import_data(key: str = "", file: UploadFile = File(...)):
+    """Merge an export back in. Existing lists and progress are left alone."""
+    if _APP_PASSWORD and key != _APP_PASSWORD:
+        raise HTTPException(status_code=403, detail="Invalid key")
+    try:
+        payload = json.loads((await file.read()).decode("utf-8"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="That file is not a valid JSON export")
+    try:
+        return import_all(payload)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
 
 
 @app.get("/api/backup")

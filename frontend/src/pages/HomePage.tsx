@@ -94,21 +94,43 @@ export default function HomePage() {
     navigate(`/learn/${listId}`)
   }
 
+  const authKey = () => encodeURIComponent(localStorage.getItem('app_auth') ?? '')
+
+  const handleExport = async () => {
+    setImportMsg('Preparing…')
+    try {
+      const res = await fetch(`/api/export?key=${authKey()}`)
+      if (!res.ok) throw new Error()
+      // Anchor download rather than navigation, so the auth key stays out of history.
+      const url = URL.createObjectURL(await res.blob())
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `vocabulary-${new Date().toISOString().slice(0, 10)}.json`
+      a.click()
+      URL.revokeObjectURL(url)
+      setImportMsg('Downloaded')
+    } catch {
+      setImportMsg('Export failed')
+    }
+    setTimeout(() => setImportMsg(''), 4000)
+  }
+
   const handleImportDb = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const password = localStorage.getItem('app_auth') ?? ''
     const form = new FormData()
     form.append('file', file)
     setImportMsg('Importing…')
     try {
-      const res = await fetch(`/api/restore?key=${encodeURIComponent(password)}`, { method: 'POST', body: form })
+      const res = await fetch(`/api/import?key=${authKey()}`, { method: 'POST', body: form })
+      const data = await res.json().catch(() => null)
       if (res.ok) {
-        setImportMsg('Done! Reloading…')
-        setTimeout(() => window.location.reload(), 1000)
+        const added = data?.words_added ?? 0
+        const restored = data?.progress_restored ?? 0
+        setImportMsg(`Imported ${added} words, ${restored} progress entries`)
+        setTimeout(() => window.location.reload(), 1500)
       } else {
-        const detail = await res.json().then(d => d?.detail).catch(() => null)
-        setImportMsg(detail || 'Import failed')
+        setImportMsg(data?.detail || 'Import failed')
       }
     } catch {
       setImportMsg('Import failed')
@@ -129,9 +151,14 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
-            <label className="cursor-pointer px-3 py-2 border border-border text-muted rounded-lg text-xs font-medium hover:text-ink hover:border-ink transition" title="Import database">
-              ⬆ Import DB
-              <input type="file" accept=".db" className="hidden" onChange={handleImportDb} />
+            <button
+              onClick={handleExport}
+              className="px-3 py-2 border border-border text-muted rounded-lg text-xs font-medium hover:text-ink hover:border-ink transition"
+              title="Download your words and progress as a file"
+            >⬇ Export</button>
+            <label className="cursor-pointer px-3 py-2 border border-border text-muted rounded-lg text-xs font-medium hover:text-ink hover:border-ink transition" title="Restore from an export file">
+              ⬆ Import
+              <input type="file" accept=".json" className="hidden" onChange={handleImportDb} />
             </label>
             {importMsg && <span className="text-xs text-ghost">{importMsg}</span>}
             {tab === 'my' && (
