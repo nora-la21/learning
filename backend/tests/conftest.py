@@ -28,7 +28,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 import database  # noqa: E402
 
-TABLES = ("answer_events", "word_progress", "words", "word_lists")
+TABLES = ("game_sessions", "answer_events", "word_progress", "words", "word_lists")
 
 
 def reset_database() -> None:

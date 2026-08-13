@@ -78,6 +78,13 @@ def init_db() -> None:
             time_ms     INTEGER,
             answered_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
+
+        CREATE TABLE IF NOT EXISTS game_sessions (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            session_id TEXT NOT NULL UNIQUE,
+            data       TEXT NOT NULL,
+            updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
     """)
 
     # Simple column-add migrations (safe to retry)

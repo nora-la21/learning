@@ -173,4 +173,13 @@ CREATE TABLE IF NOT EXISTS answer_events (
     time_ms     INTEGER,
     answered_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
+
+-- Every table carries an id: the adapter appends RETURNING id to inserts to
+-- stand in for sqlite3's lastrowid, so a table without one breaks on insert.
+CREATE TABLE IF NOT EXISTS game_sessions (
+    id         SERIAL PRIMARY KEY,
+    session_id TEXT NOT NULL UNIQUE,
+    data       TEXT NOT NULL,
+    updated_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
 """

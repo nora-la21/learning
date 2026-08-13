@@ -1,7 +1,8 @@
+import json
 import re
 import random
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Optional
 from database import get_db
 
@@ -147,7 +148,75 @@ class GameSession:
         return words
 
 
+# In-process cache in front of the game_sessions table. Sessions used to live
+# only here, so a restart — a deploy, or a free-tier host waking from sleep —
+# dropped every session in progress. Mid-practice that surfaced as "Session not
+# found", or as the finish screen appearing over an unfinished session.
 _sessions: dict[str, GameSession] = {}
+
+SESSION_TTL_DAYS = 2
+
+
+def _serialize(session: GameSession) -> str:
+    data = asdict(session)
+    data["correctly_done_this_mode"] = sorted(session.correctly_done_this_mode)
+    return json.dumps(data)
+
+
+def _deserialize(raw: str) -> GameSession:
+    data = json.loads(raw)
+    data["correctly_done_this_mode"] = set(data.get("correctly_done_this_mode") or [])
+    return GameSession(**data)
+
+
+def _store(session: GameSession) -> None:
+    _sessions[session.session_id] = session
+    payload = _serialize(session)
+    conn = get_db()
+    try:
+        updated = conn.execute(
+            "UPDATE game_sessions SET data = ?, updated_at = ? WHERE session_id = ?",
+            (payload, _now_str(), session.session_id),
+        )
+        if not updated.rowcount:
+            conn.execute(
+                "INSERT OR IGNORE INTO game_sessions (session_id, data, updated_at) "
+                "VALUES (?, ?, ?)",
+                (session.session_id, payload, _now_str()),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _load(session_id: str) -> Optional[GameSession]:
+    cached = _sessions.get(session_id)
+    if cached is not None:
+        return cached
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT data FROM game_sessions WHERE session_id = ?", (session_id,)
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return None
+    session = _deserialize(row["data"])
+    _sessions[session_id] = session  # cache only; nothing has changed to write back
+    return session
+
+
+def _purge_expired() -> None:
+    """Sessions are abandoned far more often than they are finished."""
+    conn = get_db()
+    try:
+        conn.execute(
+            f"DELETE FROM game_sessions WHERE updated_at < datetime('now', '-{SESSION_TTL_DAYS} days')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def create_session(list_id: int, mode: str, session_size: int, word_ids: list[int] | None = None, skip_mastered_modes: bool = False, preserve_order: bool = False) -> GameSession:
@@ -294,12 +363,13 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
         distractor_word_ids=list(pool) if word_ids is not None else [],
         per_mode_word_ids=per_mode_word_ids,
     )
-    _sessions[session_id] = session
+    _store(session)
+    _purge_expired()
     return session
 
 
 def get_next_question(session_id: str) -> Optional[dict]:
-    session = _sessions.get(session_id)
+    session = _load(session_id)
     if not session or session.is_complete:
         return None
     if not session.word_queue:
@@ -384,7 +454,7 @@ def get_next_question(session_id: str) -> Optional[dict]:
 
 
 def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> dict:
-    session = _sessions.get(session_id)
+    session = _load(session_id)
     if not session:
         raise ValueError("Session not found")
 
@@ -440,6 +510,7 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
             new_mode = session.mode
 
     conn.close()
+    _store(session)
     return {
         "correct": correct,
         "almost": almost,
@@ -457,7 +528,7 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
 
 
 def skip_word(session_id: str, word_id: int) -> dict:
-    session = _sessions.get(session_id)
+    session = _load(session_id)
     if not session:
         raise ValueError("Session not found")
 
@@ -486,6 +557,7 @@ def skip_word(session_id: str, word_id: int) -> dict:
             session.word_queue = session.words_for_next_mode()
             new_mode = session.mode
 
+    _store(session)
     return {
         "progress_index": session.progress,
         "total": session.total,
