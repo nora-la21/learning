@@ -4,29 +4,26 @@ import HomePage from './pages/HomePage'
 import LearnPage from './pages/LearnPage'
 import ProgressPage from './pages/ProgressPage'
 import LoginPage from './pages/LoginPage'
+import { fetchMe } from './api/auth'
 
 export default function App() {
-  const [authRequired, setAuthRequired] = useState<boolean | null>(null)
-  const [authenticated, setAuthenticated] = useState(false)
+  // null = still checking; the stored token is verified against the server
+  // rather than trusted, so a revoked or expired session lands on sign-in.
+  const [authenticated, setAuthenticated] = useState<boolean | null>(null)
 
   useEffect(() => {
-    fetch('/api/auth-status')
-      .then(r => r.json())
-      .then(({ required }) => {
-        setAuthRequired(required)
-        if (!required) {
-          setAuthenticated(true)
-        } else {
-          setAuthenticated(Boolean(localStorage.getItem('app_auth')))
-        }
-      })
-      .catch(() => {
-        setAuthRequired(false)
-        setAuthenticated(true)
-      })
+    fetchMe()
+      .then(me => setAuthenticated(Boolean(me)))
+      .catch(() => setAuthenticated(false))
   }, [])
 
-  if (authRequired === null) return null
+  if (authenticated === null) {
+    return (
+      <div className="min-h-screen bg-paper flex items-center justify-center">
+        <div className="text-ghost animate-pulse">Loading…</div>
+      </div>
+    )
+  }
 
   if (!authenticated) {
     return <LoginPage onLogin={() => setAuthenticated(true)} />

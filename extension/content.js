@@ -1,5 +1,16 @@
 const DEFAULT_SERVER = 'https://learning-steel-ten.vercel.app'
 
+// The API requires an account. The token is copied from the web app, which
+// stores it under the same key, via the popup's "Connect account" field.
+function getToken() {
+  return new Promise(res => chrome.storage.local.get('dvh_token', v => res(v.dvh_token || '')))
+}
+
+async function authHeaders() {
+  const token = await getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
 function getAPI() {
   return new Promise(res =>
     chrome.storage.local.get('dvh_server', v =>
@@ -15,7 +26,7 @@ let lists = []
 async function fetchLists() {
   const API = await getAPI()
   try {
-    const r = await fetch(`${API}/lists?builtin=false`)
+    const r = await fetch(`${API}/lists?builtin=false`, { headers: await authHeaders() })
     lists = await r.json()
   } catch {
     lists = []
@@ -141,7 +152,7 @@ async function showPopup(word, x, y) {
       const API = await getAPI()
       const r = await fetch(`${API}/words/quick-add`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ list_id: listId, source_word: sourceWord, target_word: tgt }),
       })
       if (!r.ok) throw new Error('Failed')
@@ -163,7 +174,7 @@ async function showPopup(word, x, y) {
     if (!name?.trim()) return
     try {
       const API = await getAPI()
-      const r = await fetch(`${API}/lists?name=${encodeURIComponent(name.trim())}`, { method: 'POST' })
+      const r = await fetch(`${API}/lists?name=${encodeURIComponent(name.trim())}`, { method: 'POST', headers: await authHeaders() })
       const data = await r.json()
       lists.push({ id: data.id, name: name.trim() })
       if (!popup) return

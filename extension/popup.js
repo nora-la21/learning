@@ -27,6 +27,15 @@ document.getElementById('enabled-toggle').addEventListener('change', e => {
   updateLabel(enabled)
 })
 
+const tokenInput = document.getElementById('access-token')
+if (tokenInput) {
+  chrome.storage.local.get('dvh_token', v => { tokenInput.value = v.dvh_token || '' })
+  tokenInput.addEventListener('change', e => {
+    chrome.storage.local.set({ dvh_token: e.target.value.trim() })
+    checkHealth()
+  })
+}
+
 document.getElementById('server-url').addEventListener('change', e => {
   const server = e.target.value.trim().replace(/\/$/, '')
   chrome.storage.local.set({ dvh_server: server })
@@ -38,10 +47,25 @@ function updateLabel(enabled) {
   document.getElementById('toggle-label').textContent = enabled ? 'Popup enabled' : 'Popup disabled'
 }
 
+function getToken() {
+  return new Promise(res => chrome.storage.local.get('dvh_token', v => res(v.dvh_token || '')))
+}
+
 async function ping(server, ms) {
   const r = await fetch(`${server}/api/health`, { signal: AbortSignal.timeout(ms) })
   if (!r.ok) throw new Error(`HTTP ${r.status}`)
   return true
+}
+
+/** The server being up is not enough — saving a word needs a valid account. */
+async function checkAccount(server) {
+  const token = await getToken()
+  if (!token) return 'no-token'
+  const r = await fetch(`${server}/api/auth/me`, {
+    headers: { Authorization: `Bearer ${token}` },
+    signal: AbortSignal.timeout(10000),
+  })
+  return r.ok ? 'ok' : 'bad-token'
 }
 
 async function checkHealth() {
@@ -60,6 +84,17 @@ async function checkHealth() {
       el.textContent = '⏳ Waking server… (up to 60s)'
       el.className = ''
       await ping(server, 60000)
+    }
+    const account = await checkAccount(server)
+    if (account === 'no-token') {
+      el.textContent = '⚠ Paste your access token below'
+      el.className = 'status-err'
+      return
+    }
+    if (account === 'bad-token') {
+      el.textContent = '⚠ Token expired — sign in again and re-copy it'
+      el.className = 'status-err'
+      return
     }
     el.textContent = '✓ Connected'
     el.className = 'status-ok'

@@ -5,6 +5,7 @@ import type { DueSummary, RecentWord, Word, WordList } from '../types'
 import UploadZone from '../components/UploadZone'
 import ThemeToggle from '../components/ThemeToggle'
 import ReminderToggle from '../components/ReminderToggle'
+import { authHeaders, getEmail, getToken, logout } from '../api/auth'
 import { useSpeech } from '../hooks/useSpeech'
 
 const FLAG: Record<string, string> = {
@@ -95,12 +96,10 @@ export default function HomePage() {
     navigate(`/learn/${listId}`)
   }
 
-  const authKey = () => encodeURIComponent(localStorage.getItem('app_auth') ?? '')
-
   const handleExport = async () => {
     setImportMsg('Preparing…')
     try {
-      const res = await fetch(`/api/export?key=${authKey()}`)
+      const res = await fetch('/api/export', { headers: authHeaders() })
       if (!res.ok) throw new Error()
       // Anchor download rather than navigation, so the auth key stays out of history.
       const url = URL.createObjectURL(await res.blob())
@@ -123,7 +122,7 @@ export default function HomePage() {
     form.append('file', file)
     setImportMsg('Importing…')
     try {
-      const res = await fetch(`/api/import?key=${authKey()}`, { method: 'POST', body: form })
+      const res = await fetch('/api/import', { method: 'POST', headers: authHeaders(), body: form })
       const data = await res.json().catch(() => null)
       if (res.ok) {
         const added = data?.words_added ?? 0
@@ -163,6 +162,28 @@ export default function HomePage() {
               <input type="file" accept=".json" className="hidden" onChange={handleImportDb} />
             </label>
             {importMsg && <span className="text-xs text-ghost">{importMsg}</span>}
+            <button
+              onClick={async () => {
+                const token = getToken()
+                if (!token) return
+                try {
+                  await navigator.clipboard.writeText(token)
+                  setImportMsg('Token copied — paste it into the extension')
+                } catch {
+                  // Clipboard needs a secure context and permission; fall back
+                  // to showing it so it can still be copied by hand.
+                  window.prompt('Copy this into the extension:', token)
+                }
+                setTimeout(() => setImportMsg(''), 5000)
+              }}
+              className="px-3 py-2 border border-border text-muted rounded-lg text-xs font-medium hover:text-ink hover:border-ink transition"
+              title="Copy an access token so the browser extension can save words to your account"
+            >Extension token</button>
+            <button
+              onClick={logout}
+              className="px-3 py-2 border border-border text-muted rounded-lg text-xs font-medium hover:text-ink hover:border-ink transition"
+              title={getEmail() ? `Signed in as ${getEmail()}` : 'Sign out'}
+            >Sign out</button>
             {tab === 'my' && (
               <button
                 onClick={() => setShowUpload(v => !v)}

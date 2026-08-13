@@ -101,6 +101,7 @@
       outline: none;
     }
     .server-row input:focus { border-color: #7c3aed; }
+    .hint { font-size: 10px; color: #8b8b9e; margin-top: 4px; line-height: 1.4; }
   </style>
 </head>
 <body>
@@ -120,6 +121,12 @@
   <div class="server-row">
     <div class="label">Server URL</div>
     <input type="text" id="server-url" placeholder="https://…" />
+  </div>
+
+  <div class="server-row">
+    <div class="label">Access token</div>
+    <input type="password" id="access-token" placeholder="Paste from the app" />
+    <div class="hint">Get this from the app: click "Extension token" in the header.</div>
   </div>
 
   <div class="status-row">

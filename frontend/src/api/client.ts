@@ -4,11 +4,20 @@ import type {
   ProgressSummary, WordProgressDetail, HeatmapEntry, GameMode,
   DueSummary, RecentWord,
 } from '../types'
+import { authHeaders, onUnauthorized } from './auth'
 
 const BASE = '/api'
 
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, options)
+  const res = await fetch(BASE + path, {
+    ...options,
+    headers: { ...(options?.headers ?? {}), ...authHeaders() },
+  })
+  if (res.status === 401) {
+    // The token expired or was revoked; drop it and send them back to sign in.
+    onUnauthorized()
+    throw new Error('Sign in to continue')
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
     throw new Error(err.detail || res.statusText)
