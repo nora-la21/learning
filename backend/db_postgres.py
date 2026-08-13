@@ -28,6 +28,10 @@ def translate(sql: str) -> str:
     if _INSERT_OR_IGNORE.search(sql):
         sql = _INSERT_OR_IGNORE.sub("INSERT INTO", sql).rstrip().rstrip(";")
         sql += " ON CONFLICT DO NOTHING"
+    # psycopg reads % as the start of a placeholder, so a literal one (LIKE 'de %')
+    # has to be doubled. This must happen before ? becomes %s, or the placeholders
+    # we just introduced would be escaped too.
+    sql = sql.replace("%", "%%")
     return sql.replace("?", "%s")
 
 
