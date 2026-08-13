@@ -179,6 +179,7 @@ class Connection:
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS word_lists (
     id          SERIAL PRIMARY KEY,
+    user_id     INTEGER,
     name        TEXT NOT NULL,
     source_lang TEXT NOT NULL DEFAULT 'nl',
     target_lang TEXT NOT NULL DEFAULT 'en',
@@ -200,6 +201,7 @@ CREATE TABLE IF NOT EXISTS words (
 CREATE TABLE IF NOT EXISTS word_progress (
     id              SERIAL PRIMARY KEY,
     word_id         INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    user_id         INTEGER,
     mode            TEXT NOT NULL,
     repetitions     INTEGER NOT NULL DEFAULT 0,
     ease_factor     DOUBLE PRECISION NOT NULL DEFAULT 2.5,
@@ -209,20 +211,37 @@ CREATE TABLE IF NOT EXISTS word_progress (
     incorrect_count INTEGER NOT NULL DEFAULT 0,
     last_seen_at    TIMESTAMP,
     mastered        INTEGER NOT NULL DEFAULT 0,
-    UNIQUE(word_id, mode)
+    UNIQUE(user_id, word_id, mode)
 );
 
 CREATE TABLE IF NOT EXISTS answer_events (
     id          SERIAL PRIMARY KEY,
     word_id     INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    user_id     INTEGER,
     mode        TEXT NOT NULL,
     correct     INTEGER NOT NULL,
     time_ms     INTEGER,
     answered_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS users (
+    id            SERIAL PRIMARY KEY,
+    email         TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    created_at    TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS auth_sessions (
+    id         SERIAL PRIMARY KEY,
+    user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    token_hash TEXT NOT NULL UNIQUE,
+    expires_at TIMESTAMP NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 CREATE TABLE IF NOT EXISTS push_subscriptions (
     id         SERIAL PRIMARY KEY,
+    user_id    INTEGER,
     endpoint   TEXT NOT NULL UNIQUE,
     created_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
@@ -231,6 +250,7 @@ CREATE TABLE IF NOT EXISTS push_subscriptions (
 -- stand in for sqlite3's lastrowid, so a table without one breaks on insert.
 CREATE TABLE IF NOT EXISTS game_sessions (
     id         SERIAL PRIMARY KEY,
+    user_id    INTEGER,
     session_id TEXT NOT NULL UNIQUE,
     data       TEXT NOT NULL,
     updated_at TIMESTAMP NOT NULL DEFAULT NOW()

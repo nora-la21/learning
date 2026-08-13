@@ -27,8 +27,10 @@ def get_db():
 def init_db() -> None:
     if USE_POSTGRES:
         from db_postgres import SCHEMA
+        import migrations
         conn = get_db()
         conn.executescript(SCHEMA)
+        migrations.run(conn)
         conn.close()
         return
 
@@ -37,6 +39,7 @@ def init_db() -> None:
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS word_lists (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id     INTEGER,
             name        TEXT NOT NULL,
             source_lang TEXT NOT NULL DEFAULT 'nl',
             target_lang TEXT NOT NULL DEFAULT 'en',
@@ -58,6 +61,7 @@ def init_db() -> None:
         CREATE TABLE IF NOT EXISTS word_progress (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
             word_id         INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+            user_id         INTEGER,
             mode            TEXT NOT NULL,
             repetitions     INTEGER NOT NULL DEFAULT 0,
             ease_factor     REAL NOT NULL DEFAULT 2.5,
@@ -67,26 +71,44 @@ def init_db() -> None:
             incorrect_count INTEGER NOT NULL DEFAULT 0,
             last_seen_at    TEXT,
             mastered        INTEGER NOT NULL DEFAULT 0,
-            UNIQUE(word_id, mode)
+            UNIQUE(user_id, word_id, mode)
         );
 
         CREATE TABLE IF NOT EXISTS answer_events (
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
             word_id     INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+            user_id     INTEGER,
             mode        TEXT NOT NULL,
             correct     INTEGER NOT NULL,
             time_ms     INTEGER,
             answered_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS users (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            email         TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            created_at    TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
+        CREATE TABLE IF NOT EXISTS auth_sessions (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            token_hash TEXT NOT NULL UNIQUE,
+            expires_at TEXT NOT NULL,
+            created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+
         CREATE TABLE IF NOT EXISTS push_subscriptions (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER,
             endpoint   TEXT NOT NULL UNIQUE,
             created_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
         CREATE TABLE IF NOT EXISTS game_sessions (
             id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id    INTEGER,
             session_id TEXT NOT NULL UNIQUE,
             data       TEXT NOT NULL,
             updated_at TEXT NOT NULL DEFAULT (datetime('now'))
@@ -154,6 +176,9 @@ def init_db() -> None:
             );
         """)
         conn.commit()
+
+    import migrations
+    migrations.run(conn)
 
     conn.close()
 
