@@ -6,10 +6,11 @@ a shared secret rather than left open.
 """
 import os
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from database import get_db
+from routers.auth import current_user
 from services import push
 
 router = APIRouter(prefix="/api/push", tags=["push"])
@@ -30,7 +31,7 @@ def push_config():
 
 
 @router.post("/subscribe", status_code=204)
-def subscribe(body: SubscribeRequest):
+def subscribe(body: SubscribeRequest, user=Depends(current_user)):
     if not push.push_enabled():
         raise HTTPException(status_code=501, detail="Push notifications are not configured")
     endpoint = body.endpoint.strip()
@@ -39,17 +40,19 @@ def subscribe(body: SubscribeRequest):
     conn = get_db()
     try:
         conn.execute(
-            "INSERT OR IGNORE INTO push_subscriptions (endpoint) VALUES (?)", (endpoint,))
+            "INSERT OR IGNORE INTO push_subscriptions (endpoint, user_id) VALUES (?, ?)",
+            (endpoint, user["id"]))
         conn.commit()
     finally:
         conn.close()
 
 
 @router.post("/unsubscribe", status_code=204)
-def unsubscribe(body: SubscribeRequest):
+def unsubscribe(body: SubscribeRequest, user=Depends(current_user)):
     conn = get_db()
     try:
-        conn.execute("DELETE FROM push_subscriptions WHERE endpoint = ?", (body.endpoint.strip(),))
+        conn.execute("DELETE FROM push_subscriptions WHERE endpoint = ? AND user_id = ?",
+                     (body.endpoint.strip(), user["id"]))
         conn.commit()
     finally:
         conn.close()
@@ -65,17 +68,20 @@ def send_due(key: str = ""):
 
     conn = get_db()
     try:
-        due = conn.execute(
-            "SELECT COUNT(*) AS n FROM ("
-            "  SELECT w.id FROM words w JOIN word_progress wp ON wp.word_id = w.id "
-            "  WHERE w.manually_excluded = 0 AND wp.next_review_at <= datetime('now') "
-            "  GROUP BY w.id"
-            ") t"
-        ).fetchone()["n"]
-        if not due:
+        # Due counts are per account, so only notify people who actually have
+        # something waiting rather than everyone whenever anyone does.
+        rows = conn.execute(
+            "SELECT s.endpoint FROM push_subscriptions s WHERE EXISTS ("
+            "  SELECT 1 FROM word_progress wp "
+            "  LEFT JOIN user_word_flags f ON f.word_id = wp.word_id AND f.user_id = wp.user_id "
+            "  WHERE wp.user_id = s.user_id AND COALESCE(f.known, 0) = 0 "
+            "    AND wp.next_review_at <= datetime('now')"
+            ")"
+        ).fetchall()
+        endpoints = [r["endpoint"] for r in rows]
+        due = len(endpoints)
+        if not endpoints:
             return {"due": 0, "sent": 0, "pruned": 0}
-        endpoints = [r["endpoint"] for r in
-                     conn.execute("SELECT endpoint FROM push_subscriptions").fetchall()]
     finally:
         conn.close()
 

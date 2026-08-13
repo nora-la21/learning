@@ -158,6 +158,12 @@ def _adopt_orphaned_data(conn, user_id: int) -> None:
                  (user_id,))
     for table in ("word_progress", "answer_events", "push_subscriptions", "game_sessions"):
         conn.execute(f"UPDATE {table} SET user_id = ? WHERE user_id IS NULL", (user_id,))
+    # "I already know this" was a column on the shared words table before accounts.
+    conn.execute(
+        "INSERT OR IGNORE INTO user_word_flags (user_id, word_id, known) "
+        "SELECT ?, id, 1 FROM words WHERE manually_excluded = 1",
+        (user_id,),
+    )
 
 
 def count_users() -> int:

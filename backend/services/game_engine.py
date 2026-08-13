@@ -5,6 +5,7 @@ import uuid
 from dataclasses import asdict, dataclass, field
 from typing import Optional
 from database import get_db
+from services.scoping import known_join, NOT_KNOWN
 
 _STRIP_PREFIXES = ("the ", "to ", "a ", "an ")
 
@@ -99,6 +100,7 @@ ALL_IN_ONE_SEQUENCE = ["multiple_choice", "reverse_mc", "listening", "reverse_ty
 class GameSession:
     session_id: str
     list_id: int
+    user_id: int
     all_modes: list
     current_mode_index: int
     base_word_ids: list
@@ -180,23 +182,25 @@ def _store(session: GameSession) -> None:
         )
         if not updated.rowcount:
             conn.execute(
-                "INSERT OR IGNORE INTO game_sessions (session_id, data, updated_at) "
-                "VALUES (?, ?, ?)",
-                (session.session_id, payload, _now_str()),
+                "INSERT OR IGNORE INTO game_sessions (session_id, user_id, data, updated_at) "
+                "VALUES (?, ?, ?, ?)",
+                (session.session_id, session.user_id, payload, _now_str()),
             )
         conn.commit()
     finally:
         conn.close()
 
 
-def _load(session_id: str) -> Optional[GameSession]:
+def _load(session_id: str, user_id: int) -> Optional[GameSession]:
+    """Only ever returns a session belonging to the caller."""
     cached = _sessions.get(session_id)
     if cached is not None:
-        return cached
+        return cached if cached.user_id == user_id else None
     conn = get_db()
     try:
         row = conn.execute(
-            "SELECT data FROM game_sessions WHERE session_id = ?", (session_id,)
+            "SELECT data FROM game_sessions WHERE session_id = ? AND user_id = ?",
+            (session_id, user_id),
         ).fetchone()
     finally:
         conn.close()
@@ -219,13 +223,14 @@ def _purge_expired() -> None:
         conn.close()
 
 
-def create_session(list_id: int, mode: str, session_size: int, word_ids: list[int] | None = None, skip_mastered_modes: bool = False, preserve_order: bool = False) -> GameSession:
+def create_session(list_id: int, mode: str, session_size: int, word_ids: list[int] | None = None, skip_mastered_modes: bool = False, preserve_order: bool = False, *, user_id: int) -> GameSession:
     if mode not in INDIVIDUAL_MODES and mode != "all_in_one":
         raise ValueError(f"Invalid mode: {mode}")
 
     conn = get_db()
     list_row = conn.execute(
-        "SELECT source_lang, target_lang FROM word_lists WHERE id = ?", (list_id,)
+        "SELECT source_lang, target_lang FROM word_lists WHERE id = ? "
+        "AND (builtin = 1 OR user_id = ?)", (list_id, user_id)
     ).fetchone()
     if not list_row:
         conn.close()
@@ -236,8 +241,9 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
     if word_ids is not None and preserve_order:
         ph = ','.join('?' * len(word_ids))
         rows = conn.execute(
-            f"SELECT id FROM words WHERE id IN ({ph}) AND manually_excluded = 0",
-            tuple(word_ids),
+            f"SELECT w.id FROM words w {known_join()} "
+            f"WHERE w.id IN ({ph}) AND {NOT_KNOWN}",
+            (user_id, *word_ids),
         ).fetchall()
         allowed = {r["id"] for r in rows}
         pool = [wid for wid in word_ids if wid in allowed]
@@ -250,9 +256,11 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
                 f"SELECT w.id, "
                 f"COALESCE(SUM(wp.correct_count + wp.incorrect_count), 0) as times_seen, "
                 f"SUM(CASE WHEN wp.mastered = 1 THEN 1 ELSE 0 END) as modes_mastered "
-                f"FROM words w LEFT JOIN word_progress wp ON wp.word_id = w.id "
-                f"WHERE w.id IN ({ph}) AND w.manually_excluded = 0 GROUP BY w.id",
-                word_ids,
+                f"FROM words w "
+                f"LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.user_id = ? "
+                f"{known_join()} "
+                f"WHERE w.id IN ({ph}) AND {NOT_KNOWN} GROUP BY w.id",
+                (user_id, user_id, *word_ids),
             ).fetchall()
             buckets: dict[tuple, list] = {}
             for row in all_words:
@@ -263,9 +271,11 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
                 f"SELECT w.id, "
                 f"COALESCE(wp.correct_count + wp.incorrect_count, 0) as times_seen, "
                 f"COALESCE(wp.mastered, 0) as mastered "
-                f"FROM words w LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? "
-                f"WHERE w.id IN ({ph}) AND w.manually_excluded = 0",
-                [mode] + list(word_ids),
+                f"FROM words w "
+                f"LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? AND wp.user_id = ? "
+                f"{known_join()} "
+                f"WHERE w.id IN ({ph}) AND {NOT_KNOWN}",
+                (mode, user_id, user_id, *word_ids),
             ).fetchall()
             buckets = {}
             for row in all_words:
@@ -283,10 +293,11 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
                 "COALESCE(SUM(wp.correct_count + wp.incorrect_count), 0) as times_seen, "
                 "SUM(CASE WHEN wp.mastered = 1 THEN 1 ELSE 0 END) as modes_mastered "
                 "FROM words w "
-                "LEFT JOIN word_progress wp ON wp.word_id = w.id "
-                "WHERE w.list_id = ? AND w.manually_excluded = 0 "
+                "LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.user_id = ? "
+                f"{known_join()} "
+                f"WHERE w.list_id = ? AND {NOT_KNOWN} "
                 "GROUP BY w.id",
-                (list_id,),
+                (user_id, user_id, list_id),
             ).fetchall()
             buckets = {}
             for row in all_words:
@@ -298,9 +309,10 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
                 "COALESCE(wp.correct_count + wp.incorrect_count, 0) as times_seen, "
                 "COALESCE(wp.mastered, 0) as mastered "
                 "FROM words w "
-                "LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? "
-                "WHERE w.list_id = ? AND w.manually_excluded = 0",
-                (mode, list_id),
+                "LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? AND wp.user_id = ? "
+                f"{known_join()} "
+                f"WHERE w.list_id = ? AND {NOT_KNOWN}",
+                (mode, user_id, user_id, list_id),
             ).fetchall()
             buckets = {}
             for row in all_words:
@@ -329,9 +341,9 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
         for m in ALL_IN_ONE_SEQUENCE:
             rows = conn.execute(
                 f"SELECT w.id FROM words w "
-                f"LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? "
+                f"LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? AND wp.user_id = ? "
                 f"WHERE w.id IN ({ph}) AND COALESCE(wp.mastered, 0) = 0",
-                [m] + unique,
+                (m, user_id, *unique),
             ).fetchall()
             not_mastered = {r["id"] for r in rows}
             mode_words = [wid for wid in unique if wid in not_mastered]
@@ -352,6 +364,7 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
     session = GameSession(
         session_id=session_id,
         list_id=list_id,
+        user_id=user_id,
         all_modes=all_modes,
         current_mode_index=0,
         base_word_ids=unique[:],
@@ -368,8 +381,8 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
     return session
 
 
-def get_next_question(session_id: str) -> Optional[dict]:
-    session = _load(session_id)
+def get_next_question(session_id: str, user_id: int) -> Optional[dict]:
+    session = _load(session_id, user_id)
     if not session or session.is_complete:
         return None
     if not session.word_queue:
@@ -453,8 +466,8 @@ def get_next_question(session_id: str) -> Optional[dict]:
     }
 
 
-def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> dict:
-    session = _load(session_id)
+def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int, user_id: int) -> dict:
+    session = _load(session_id, user_id)
     if not session:
         raise ValueError("Session not found")
 
@@ -527,8 +540,8 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
     }
 
 
-def skip_word(session_id: str, word_id: int) -> dict:
-    session = _load(session_id)
+def skip_word(session_id: str, word_id: int, user_id: int) -> dict:
+    session = _load(session_id, user_id)
     if not session:
         raise ValueError("Session not found")
 

@@ -28,7 +28,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 import database  # noqa: E402
 
-TABLES = ("auth_sessions", "users", "game_sessions", "push_subscriptions",
+TABLES = ("auth_sessions", "users", "user_word_flags", "game_sessions", "push_subscriptions",
           "answer_events", "word_progress", "words", "word_lists")
 
 
@@ -48,10 +48,42 @@ def reset_database() -> None:
 
 @pytest.fixture(scope="module")
 def client():
+    """A signed-in client. Every data endpoint requires an account."""
     reset_database()
     import main
     with TestClient(main.app) as c:
+        r = c.post("/api/auth/register",
+                   json={"email": "tester@example.com", "password": "test-password"})
+        assert r.status_code == 200, r.text
+        c.headers.update({"Authorization": f"Bearer {r.json()['token']}"})
         yield c
+
+
+@pytest.fixture
+def other_client():
+    """A second, unrelated account — used to prove data does not leak."""
+    import main
+    c = TestClient(main.app)
+    credentials = {"email": "intruder@example.com", "password": "other-password"}
+    r = c.post("/api/auth/register", json=credentials)
+    if r.status_code == 409:      # already created by an earlier test in this module
+        r = c.post("/api/auth/login", json=credentials)
+    assert r.status_code == 200, r.text
+    c.headers.update({"Authorization": f"Bearer {r.json()['token']}"})
+    yield c
+    c.close()
+
+
+@pytest.fixture
+def anon_client():
+    """No credentials at all."""
+    import main
+    with TestClient(main.app) as c:
+        yield c
+
+
+def current_user_id(client):
+    return client.get("/api/auth/me").json()["id"]
 
 
 @pytest.fixture

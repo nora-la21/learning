@@ -9,7 +9,7 @@ import json
 
 import database
 from services import progress_engine
-from conftest import biggest_builtin
+from conftest import biggest_builtin, current_user_id
 
 
 def do_export(client):
@@ -82,7 +82,7 @@ def test_progress_survives_the_round_trip(client):
     wid = client.post("/api/words/quick-add", json={
         "list_id": lid, "source_word": "trein", "target_word": "train"}).json()["id"]
     for _ in range(4):
-        progress_engine.update_word_progress(wid, True, 800, "multiple_choice")
+        progress_engine.update_word_progress(wid, True, 800, "multiple_choice", user_id=current_user_id(client))
 
     payload = do_export(client)
     exported = next(l for l in payload["lists"] if l["name"] == "WithProgress")
@@ -119,7 +119,7 @@ def test_builtin_progress_is_keyed_by_word_not_id(client):
     big = biggest_builtin(client)
     word = client.get(f"/api/lists/{big['id']}/words").json()[0]
     for _ in range(4):
-        progress_engine.update_word_progress(word["id"], True, 800, "listening")
+        progress_engine.update_word_progress(word["id"], True, 800, "listening", user_id=current_user_id(client))
 
     payload = do_export(client)
     entry = next(e for e in payload["builtin_progress"]
@@ -144,11 +144,11 @@ def test_existing_progress_is_not_overwritten(client):
     wid = client.post("/api/words/quick-add", json={
         "list_id": lid, "source_word": "zon", "target_word": "sun"}).json()["id"]
     for _ in range(2):
-        progress_engine.update_word_progress(wid, True, 800, "multiple_choice")
+        progress_engine.update_word_progress(wid, True, 800, "multiple_choice", user_id=current_user_id(client))
     payload = do_export(client)
 
     for _ in range(6):
-        progress_engine.update_word_progress(wid, True, 800, "multiple_choice")
+        progress_engine.update_word_progress(wid, True, 800, "multiple_choice", user_id=current_user_id(client))
     rows = client.get("/api/progress/words", params={"list_id": lid}).json()
     current = rows[0]["modes"][0]["repetitions"]
 

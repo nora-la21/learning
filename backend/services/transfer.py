@@ -10,6 +10,7 @@ startup. Their *progress* is, keyed by the word itself, so a re-import restores
 how well you know the built-in vocabulary too.
 """
 from database import get_db
+from services.scoping import set_known
 
 FORMAT_VERSION = 1
 
@@ -19,18 +20,24 @@ PROGRESS_COLUMNS = (
 )
 
 
-def export_all() -> dict:
+def export_all(user_id: int) -> dict:
     conn = get_db()
     try:
         lists = conn.execute(
-            "SELECT id, name, source_lang, target_lang, builtin FROM word_lists ORDER BY id"
+            "SELECT id, name, source_lang, target_lang, builtin FROM word_lists "
+            "WHERE builtin = 1 OR user_id = ? ORDER BY id", (user_id,)
         ).fetchall()
         words = conn.execute(
-            "SELECT id, list_id, source_word, target_word, manually_excluded "
-            "FROM words ORDER BY id"
+            "SELECT w.id, w.list_id, w.source_word, w.target_word, "
+            "CASE WHEN COALESCE(f.known, 0) = 1 THEN 1 ELSE 0 END AS known "
+            "FROM words w "
+            "JOIN word_lists wl ON wl.id = w.list_id "
+            "LEFT JOIN user_word_flags f ON f.word_id = w.id AND f.user_id = ? "
+            "WHERE wl.builtin = 1 OR wl.user_id = ? ORDER BY w.id", (user_id, user_id)
         ).fetchall()
         progress = conn.execute(
-            f"SELECT word_id, {', '.join(PROGRESS_COLUMNS)} FROM word_progress ORDER BY word_id"
+            f"SELECT word_id, {', '.join(PROGRESS_COLUMNS)} FROM word_progress "
+            "WHERE user_id = ? ORDER BY word_id", (user_id,)
         ).fetchall()
     finally:
         conn.close()
@@ -55,7 +62,7 @@ def export_all() -> dict:
                 {
                     "source_word": w["source_word"],
                     "target_word": w["target_word"],
-                    "known": bool(w["manually_excluded"]),
+                    "known": bool(w["known"]),
                     "progress": progress_by_word.get(w["id"], []),
                 }
                 for w in words if w["list_id"] == lst["id"]
@@ -74,7 +81,7 @@ def export_all() -> dict:
         builtin_progress.append({
             "list_name": parent["name"],
             "source_word": word["source_word"],
-            "known": bool(word["manually_excluded"]),
+            "known": bool(word["known"]),
             "progress": entries,
         })
 
@@ -86,7 +93,7 @@ def export_all() -> dict:
     }
 
 
-def import_all(payload: dict) -> dict:
+def import_all(payload: dict, user_id: int) -> dict:
     if not isinstance(payload, dict) or payload.get("format") != "dutch-vocab-export":
         raise ValueError("That file is not a vocabulary export")
     if payload.get("version") != FORMAT_VERSION:
@@ -100,15 +107,17 @@ def import_all(payload: dict) -> dict:
             if not name:
                 continue
             row = conn.execute(
-                "SELECT id FROM word_lists WHERE name = ? AND builtin = 0", (name,)
+                "SELECT id FROM word_lists WHERE name = ? AND builtin = 0 AND user_id = ?",
+                (name, user_id)
             ).fetchone()
             if row:
                 list_id = row["id"]
             else:
                 list_id = conn.execute(
-                    "INSERT INTO word_lists (name, source_lang, target_lang, builtin) "
-                    "VALUES (?, ?, ?, 0)",
-                    (name, lst.get("source_lang") or "nl", lst.get("target_lang") or "en"),
+                    "INSERT INTO word_lists (name, source_lang, target_lang, builtin, user_id) "
+                    "VALUES (?, ?, ?, 0, ?)",
+                    (name, lst.get("source_lang") or "nl", lst.get("target_lang") or "en",
+                     user_id),
                 ).lastrowid
                 added_lists += 1
 
@@ -130,9 +139,8 @@ def import_all(payload: dict) -> dict:
                     ).lastrowid
                     added_words += 1
                 if word.get("known"):
-                    conn.execute(
-                        "UPDATE words SET manually_excluded = 1 WHERE id = ?", (word_id,))
-                restored += _restore_progress(conn, word_id, word.get("progress") or [])
+                    set_known(conn, user_id, word_id, True)
+                restored += _restore_progress(conn, word_id, word.get("progress") or [], user_id)
 
         for entry in payload.get("builtin_progress") or []:
             row = conn.execute(
@@ -143,9 +151,8 @@ def import_all(payload: dict) -> dict:
             if not row:
                 continue   # that built-in list or word is not in this install
             if entry.get("known"):
-                conn.execute(
-                    "UPDATE words SET manually_excluded = 1 WHERE id = ?", (row["id"],))
-            restored += _restore_progress(conn, row["id"], entry.get("progress") or [])
+                set_known(conn, user_id, row["id"], True)
+            restored += _restore_progress(conn, row["id"], entry.get("progress") or [], user_id)
 
         conn.commit()
     finally:
@@ -158,7 +165,7 @@ def import_all(payload: dict) -> dict:
     }
 
 
-def _restore_progress(conn, word_id: int, entries: list) -> int:
+def _restore_progress(conn, word_id: int, entries: list, user_id: int) -> int:
     """Write progress rows, leaving any the user already has untouched."""
     written = 0
     for entry in entries:
@@ -166,17 +173,18 @@ def _restore_progress(conn, word_id: int, entries: list) -> int:
         if not mode:
             continue
         exists = conn.execute(
-            "SELECT id FROM word_progress WHERE word_id = ? AND mode = ?", (word_id, mode)
+            "SELECT id FROM word_progress WHERE word_id = ? AND mode = ? AND user_id = ?",
+            (word_id, mode, user_id)
         ).fetchone()
         if exists:
             continue
         conn.execute(
             "INSERT INTO word_progress "
-            "(word_id, mode, repetitions, ease_factor, interval_days, next_review_at, "
+            "(word_id, user_id, mode, repetitions, ease_factor, interval_days, next_review_at, "
             " correct_count, incorrect_count, last_seen_at, mastered) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
-                word_id, mode,
+                word_id, user_id, mode,
                 entry.get("repetitions") or 0,
                 entry.get("ease_factor") or 2.5,
                 entry.get("interval_days") or 1,

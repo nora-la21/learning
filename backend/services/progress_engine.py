@@ -1,5 +1,6 @@
 from datetime import datetime, timezone, timedelta
 from database import get_db
+from services.scoping import set_known
 
 
 # Typing the word from memory is the hardest mode, so mastering it is the
@@ -9,20 +10,23 @@ TYPING_MODE = "reverse_type_it"
 
 def update_word_progress(
     word_id: int, correct: bool, time_ms: int, mode: str,
-    known_on_type_mastery: bool = False,
+    known_on_type_mastery: bool = False, *, user_id: int,
 ) -> None:
     conn = get_db()
     row = conn.execute(
-        "SELECT * FROM word_progress WHERE word_id = ? AND mode = ?", (word_id, mode)
+        "SELECT * FROM word_progress WHERE word_id = ? AND mode = ? AND user_id = ?",
+        (word_id, mode, user_id)
     ).fetchone()
 
     if row is None:
         conn.execute(
-            "INSERT INTO word_progress (word_id, mode) VALUES (?, ?)", (word_id, mode)
+            "INSERT INTO word_progress (word_id, mode, user_id) VALUES (?, ?, ?)",
+            (word_id, mode, user_id)
         )
         conn.commit()
         row = conn.execute(
-            "SELECT * FROM word_progress WHERE word_id = ? AND mode = ?", (word_id, mode)
+            "SELECT * FROM word_progress WHERE word_id = ? AND mode = ? AND user_id = ?",
+            (word_id, mode, user_id)
         ).fetchone()
 
     reps = row["repetitions"]
@@ -49,20 +53,18 @@ def update_word_progress(
             incorrect_count = incorrect_count + ?,
             last_seen_at = ?,
             mastered = ?
-        WHERE word_id = ? AND mode = ?
+        WHERE word_id = ? AND mode = ? AND user_id = ?
         """,
         (new_reps, new_ef, new_interval, next_review,
-         1 if correct else 0, 0 if correct else 1, now_str, mastered, word_id, mode),
+         1 if correct else 0, 0 if correct else 1, now_str, mastered, word_id, mode, user_id),
     )
     conn.execute(
-        "INSERT INTO answer_events (word_id, mode, correct, time_ms) VALUES (?, ?, ?, ?)",
-        (word_id, mode, 1 if correct else 0, time_ms),
+        "INSERT INTO answer_events (word_id, mode, correct, time_ms, user_id) VALUES (?, ?, ?, ?, ?)",
+        (word_id, mode, 1 if correct else 0, time_ms, user_id),
     )
 
     if known_on_type_mastery and mastered and mode == TYPING_MODE:
-        conn.execute(
-            "UPDATE words SET manually_excluded = 1 WHERE id = ?", (word_id,)
-        )
+        set_known(conn, user_id, word_id, True)
 
     conn.commit()
     conn.close()

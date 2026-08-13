@@ -7,7 +7,7 @@ user had not finished.
 """
 import database
 from services import game_engine
-from conftest import biggest_builtin
+from conftest import biggest_builtin, current_user_id
 
 
 def simulate_restart():
@@ -132,7 +132,7 @@ def test_set_field_survives_the_json_round_trip(client):
         "chosen": (q.get("options") or ["zzz"])[0], "time_ms": 700})
 
     simulate_restart()
-    restored = game_engine._load(sid)
+    restored = game_engine._load(sid, current_user_id(client))
     assert isinstance(restored.correctly_done_this_mode, set)
 
 

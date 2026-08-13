@@ -84,6 +84,14 @@ def init_db() -> None:
             answered_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS user_word_flags (
+            id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+            known   INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(user_id, word_id)
+        );
+
         CREATE TABLE IF NOT EXISTS users (
             id            INTEGER PRIMARY KEY AUTOINCREMENT,
             email         TEXT NOT NULL UNIQUE,

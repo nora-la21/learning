@@ -224,6 +224,14 @@ CREATE TABLE IF NOT EXISTS answer_events (
     answered_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS user_word_flags (
+    id      SERIAL PRIMARY KEY,
+    user_id INTEGER NOT NULL,
+    word_id INTEGER NOT NULL REFERENCES words(id) ON DELETE CASCADE,
+    known   INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(user_id, word_id)
+);
+
 CREATE TABLE IF NOT EXISTS users (
     id            SERIAL PRIMARY KEY,
     email         TEXT NOT NULL UNIQUE,

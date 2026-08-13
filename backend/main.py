@@ -3,11 +3,12 @@ import os
 import shutil
 import tempfile
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, HTTPException, Request, UploadFile, File
+from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from database import DB_PATH, USE_POSTGRES, init_db, seed_builtin_lists
 from routers import words, upload, game, progress, tts, push, auth
+from routers.auth import current_user
 from services.transfer import export_all, import_all
 
 
@@ -80,7 +81,7 @@ _PG_FILE_TRANSFER = (
 
 
 @app.get("/api/export")
-def export_data(key: str = ""):
+def export_data(key: str = "", user=Depends(current_user)):
     """Portable JSON copy of everything the user owns.
 
     Works on either backend, unlike the raw database download, so there is
@@ -88,7 +89,7 @@ def export_data(key: str = ""):
     """
     if _APP_PASSWORD and key != _APP_PASSWORD:
         raise HTTPException(status_code=403, detail="Invalid key")
-    payload = export_all()
+    payload = export_all(user["id"])
     return Response(
         content=json.dumps(payload, indent=2, ensure_ascii=False),
         media_type="application/json",
@@ -97,7 +98,7 @@ def export_data(key: str = ""):
 
 
 @app.post("/api/import")
-async def import_data(key: str = "", file: UploadFile = File(...)):
+async def import_data(key: str = "", file: UploadFile = File(...), user=Depends(current_user)):
     """Merge an export back in. Existing lists and progress are left alone."""
     if _APP_PASSWORD and key != _APP_PASSWORD:
         raise HTTPException(status_code=403, detail="Invalid key")
@@ -106,7 +107,7 @@ async def import_data(key: str = "", file: UploadFile = File(...)):
     except Exception:
         raise HTTPException(status_code=400, detail="That file is not a valid JSON export")
     try:
-        return import_all(payload)
+        return import_all(payload, user["id"])
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
 

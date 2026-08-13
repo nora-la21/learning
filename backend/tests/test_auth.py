@@ -156,17 +156,44 @@ class TestFirstAccountAdoptsExistingData:
     the moment accounts arrive.
     """
 
+    def _make_pre_account_data(self, db):
+        """A list and a known-word flag with no owner, as the old schema left them."""
+        lid = db.execute(
+            "INSERT INTO word_lists (name, source_lang, target_lang, builtin) "
+            "VALUES (?, 'nl', 'en', 0)", ("Pre-accounts",)).lastrowid
+        wid = db.execute(
+            "INSERT INTO words (list_id, source_word, target_word) VALUES (?, ?, ?)",
+            (lid, "oud", "old")).lastrowid
+        db.execute("UPDATE words SET manually_excluded = 1 WHERE id = ?", (wid,))
+        db.execute("INSERT INTO word_progress (word_id, mode) VALUES (?, ?)",
+                   (wid, "multiple_choice"))
+        db.commit()
+        return lid, wid
+
     def test_existing_lists_and_progress_are_claimed(self, client, db):
         reset_database()
-        lid = client.post("/api/lists", params={"name": "Pre-accounts"}).json()["id"]
-        client.post("/api/words/quick-add", json={
-            "list_id": lid, "source_word": "oud", "target_word": "old"})
+        lid, wid = self._make_pre_account_data(db)
 
-        user_id = register(client).json() and db.execute(
+        register(client)
+        user_id = db.execute(
             "SELECT id FROM users WHERE email = ?", ("nora@example.com",)).fetchone()["id"]
 
-        owner = db.execute("SELECT user_id FROM word_lists WHERE id = ?", (lid,)).fetchone()
-        assert owner["user_id"] == user_id
+        assert db.execute("SELECT user_id FROM word_lists WHERE id = ?",
+                          (lid,)).fetchone()["user_id"] == user_id
+        assert db.execute("SELECT user_id FROM word_progress WHERE word_id = ?",
+                          (wid,)).fetchone()["user_id"] == user_id
+
+    def test_the_old_global_known_flag_becomes_a_personal_one(self, client, db):
+        """manually_excluded lived on the shared words table before accounts."""
+        reset_database()
+        lid, wid = self._make_pre_account_data(db)
+        register(client)
+        user_id = db.execute(
+            "SELECT id FROM users WHERE email = ?", ("nora@example.com",)).fetchone()["id"]
+        flag = db.execute(
+            "SELECT known FROM user_word_flags WHERE user_id = ? AND word_id = ?",
+            (user_id, wid)).fetchone()
+        assert flag and flag["known"] == 1
 
     def test_built_in_lists_stay_shared(self, client, db):
         """Built-ins are seeded for everyone; one account must not seize them."""
@@ -179,7 +206,7 @@ class TestFirstAccountAdoptsExistingData:
 
     def test_only_the_first_account_adopts(self, client, db):
         reset_database()
-        lid = client.post("/api/lists", params={"name": "Owned"}).json()["id"]
+        lid, _ = self._make_pre_account_data(db)
         register(client)
         first = db.execute("SELECT user_id FROM word_lists WHERE id = ?", (lid,)).fetchone()["user_id"]
 

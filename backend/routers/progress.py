@@ -1,9 +1,11 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, Depends, HTTPException
 from models import (
     ProgressSummary, WordProgressDetail, WordModeProgress, HeatmapEntry,
     DueSummary, DueListEntry,
 )
 from database import get_db
+from routers.auth import current_user
+from services.scoping import known_join, NOT_KNOWN, owns_list
 
 router = APIRouter(prefix="/api/progress", tags=["progress"])
 
@@ -11,52 +13,56 @@ NUM_MODES = 4
 
 
 @router.get("/summary", response_model=ProgressSummary)
-def get_summary(list_id: int):
+def get_summary(list_id: int, user=Depends(current_user)):
     conn = get_db()
-    list_row = conn.execute("SELECT id FROM word_lists WHERE id = ?", (list_id,)).fetchone()
-    if not list_row:
+    uid = user["id"]
+    if not owns_list(conn, uid, list_id):
         conn.close()
         raise HTTPException(status_code=404, detail="Word list not found")
 
     total = conn.execute("SELECT COUNT(*) FROM words WHERE list_id = ?", (list_id,)).fetchone()[0]
 
     mastered = conn.execute(
-        "SELECT COUNT(DISTINCT w.id) FROM words w WHERE w.list_id = ? "
-        "AND (w.manually_excluded = 1 OR "
-        "(SELECT COUNT(*) FROM word_progress wp WHERE wp.word_id = w.id AND wp.mastered = 1) >= ?)",
-        (list_id, NUM_MODES),
+        f"SELECT COUNT(DISTINCT w.id) FROM words w {known_join()} WHERE w.list_id = ? "
+        f"AND (COALESCE(uwf.known, 0) = 1 OR "
+        "(SELECT COUNT(*) FROM word_progress wp "
+        " WHERE wp.word_id = w.id AND wp.user_id = ? AND wp.mastered = 1) >= ?)",
+        (uid, list_id, uid, NUM_MODES),
     ).fetchone()[0]
 
     in_progress = conn.execute(
-        "SELECT COUNT(DISTINCT w.id) FROM words w WHERE w.list_id = ? "
-        "AND w.manually_excluded = 0 "
-        "AND (SELECT COUNT(*) FROM word_progress wp WHERE wp.word_id = w.id AND wp.repetitions > 0) > 0 "
-        "AND (SELECT COUNT(*) FROM word_progress wp WHERE wp.word_id = w.id AND wp.mastered = 1) < ?",
-        (list_id, NUM_MODES),
+        f"SELECT COUNT(DISTINCT w.id) FROM words w {known_join()} WHERE w.list_id = ? "
+        f"AND {NOT_KNOWN} "
+        "AND (SELECT COUNT(*) FROM word_progress wp "
+        "     WHERE wp.word_id = w.id AND wp.user_id = ? AND wp.repetitions > 0) > 0 "
+        "AND (SELECT COUNT(*) FROM word_progress wp "
+        "     WHERE wp.word_id = w.id AND wp.user_id = ? AND wp.mastered = 1) < ?",
+        (uid, list_id, uid, uid, NUM_MODES),
     ).fetchone()[0]
 
     not_started = total - mastered - in_progress
 
     due_today = conn.execute(
         "SELECT COUNT(DISTINCT w.id) FROM words w "
-        "JOIN word_progress wp ON wp.word_id = w.id "
+        "JOIN word_progress wp ON wp.word_id = w.id AND wp.user_id = ? "
         "WHERE w.list_id = ? AND wp.next_review_at <= datetime('now')",
-        (list_id,),
+        (uid, list_id),
     ).fetchone()[0]
 
     events_7d = conn.execute(
         "SELECT correct FROM answer_events ae "
         "JOIN words w ON w.id = ae.word_id "
-        "WHERE w.list_id = ? AND ae.answered_at >= datetime('now', '-7 days')",
-        (list_id,),
+        "WHERE w.list_id = ? AND ae.user_id = ? "
+        "AND ae.answered_at >= datetime('now', '-7 days')",
+        (list_id, uid),
     ).fetchall()
     accuracy_7d = None
     if events_7d:
         accuracy_7d = round(sum(r["correct"] for r in events_7d) / len(events_7d) * 100, 1)
 
     daily = conn.execute(
-        "SELECT DATE(answered_at) as day FROM answer_events "
-        "GROUP BY day ORDER BY day DESC LIMIT 60"
+        "SELECT DATE(answered_at) as day FROM answer_events WHERE user_id = ? "
+        "GROUP BY day ORDER BY day DESC LIMIT 60", (uid,)
     ).fetchall()
     streak = _compute_streak([r["day"] for r in daily])
 
@@ -73,11 +79,17 @@ def get_summary(list_id: int):
 
 
 @router.get("/words", response_model=list[WordProgressDetail])
-def get_word_progress(list_id: int):
+def get_word_progress(list_id: int, user=Depends(current_user)):
     conn = get_db()
+    uid = user["id"]
+    if not owns_list(conn, uid, list_id):
+        conn.close()
+        raise HTTPException(status_code=404, detail="Word list not found")
     words = conn.execute(
-        "SELECT id as word_id, source_word, target_word, manually_excluded as learned FROM words WHERE list_id = ? ORDER BY source_word",
-        (list_id,),
+        "SELECT w.id as word_id, w.source_word, w.target_word, "
+        "CASE WHEN COALESCE(uwf.known, 0) = 1 THEN 1 ELSE 0 END as learned "
+        f"FROM words w {known_join()} WHERE w.list_id = ? ORDER BY w.source_word",
+        (uid, list_id),
     ).fetchall()
 
     # One query for every word's progress rather than one per word: this page used
@@ -89,8 +101,8 @@ def get_word_progress(list_id: int):
         for r in conn.execute(
             "SELECT wp.word_id, wp.mode, wp.repetitions, wp.correct_count, "
             "wp.incorrect_count, wp.mastered FROM word_progress wp "
-            f"WHERE wp.word_id IN ({ph}) ORDER BY wp.word_id, wp.mode",
-            tuple(w["word_id"] for w in words),
+            f"WHERE wp.user_id = ? AND wp.word_id IN ({ph}) ORDER BY wp.word_id, wp.mode",
+            (uid, *(w["word_id"] for w in words)),
         ).fetchall():
             by_word.setdefault(r["word_id"], []).append(r)
 
@@ -125,7 +137,7 @@ def get_word_progress(list_id: int):
 
 
 @router.get("/due", response_model=DueSummary)
-def get_due(limit: int = 200):
+def get_due(limit: int = 200, user=Depends(current_user)):
     """Words the spaced-repetition schedule says are ready to review.
 
     A word counts as due when any single mode has come up for review; the
@@ -133,12 +145,18 @@ def get_due(limit: int = 200):
     urgent words rather than an arbitrary slice.
     """
     conn = get_db()
+    uid = user["id"]
     rows = conn.execute(
         "SELECT w.id, w.list_id, MIN(wp.next_review_at) AS due_at "
-        "FROM words w JOIN word_progress wp ON wp.word_id = w.id "
-        "WHERE w.manually_excluded = 0 AND wp.next_review_at <= datetime('now') "
+        "FROM words w "
+        "JOIN word_progress wp ON wp.word_id = w.id AND wp.user_id = ? "
+        "JOIN word_lists wl ON wl.id = w.list_id "
+        f"{known_join()} "
+        f"WHERE {NOT_KNOWN} AND (wl.builtin = 1 OR wl.user_id = ?) "
+        "AND wp.next_review_at <= datetime('now') "
         "GROUP BY w.id, w.list_id "
-        "ORDER BY due_at ASC"
+        "ORDER BY due_at ASC",
+        (uid, uid, uid),
     ).fetchall()
 
     counts: dict[int, int] = {}
@@ -170,16 +188,16 @@ def get_due(limit: int = 200):
 
 
 @router.get("/heatmap", response_model=list[HeatmapEntry])
-def get_heatmap():
+def get_heatmap(user=Depends(current_user)):
     conn = get_db()
     rows = conn.execute(
         """
         SELECT DATE(answered_at) as date, COUNT(*) as count
         FROM answer_events
-        WHERE answered_at >= datetime('now', '-365 days')
+        WHERE user_id = ? AND answered_at >= datetime('now', '-365 days')
         GROUP BY date
         ORDER BY date
-        """
+        """, (user["id"],)
     ).fetchall()
     conn.close()
     return [{"date": r["date"], "count": r["count"]} for r in rows]

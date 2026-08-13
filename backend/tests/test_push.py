@@ -19,7 +19,7 @@ from cryptography.hazmat.primitives.asymmetric.utils import encode_dss_signature
 
 import database                                              # noqa: E402
 from services import push                                    # noqa: E402
-from conftest import biggest_builtin                         # noqa: E402
+from conftest import biggest_builtin, current_user_id        # noqa: E402
 
 ENDPOINT = "https://fcm.googleapis.com/fcm/send/fake-endpoint-123"
 
@@ -177,11 +177,13 @@ class TestSendDue:
 
         word = client.get(f"/api/lists/{biggest_builtin(client)['id']}/words").json()[0]
         conn = database.get_db()
-        conn.execute("INSERT INTO word_progress (word_id, mode) VALUES (?, ?)",
-                     (word["id"], "multiple_choice"))
+        uid = current_user_id(client)
+        conn.execute("INSERT INTO word_progress (word_id, mode, user_id) VALUES (?, ?, ?)",
+                     (word["id"], "multiple_choice", uid))
         conn.execute(
-            "UPDATE word_progress SET next_review_at = ? WHERE word_id = ? AND mode = ?",
-            ("2020-01-01 00:00:00", word["id"], "multiple_choice"))
+            "UPDATE word_progress SET next_review_at = ? "
+            "WHERE word_id = ? AND mode = ? AND user_id = ?",
+            ("2020-01-01 00:00:00", word["id"], "multiple_choice", uid))
         conn.commit()
         conn.close()
 

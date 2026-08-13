@@ -3,7 +3,7 @@ import pytest
 
 import database
 from services import progress_engine
-from conftest import biggest_builtin
+from conftest import biggest_builtin, current_user_id
 
 TYPING = "reverse_type_it"
 
@@ -13,22 +13,25 @@ def big_list(client):
     return biggest_builtin(client)["id"]
 
 
-def schedule(word_id, mode, when):
-    """Backdate (or postdate) a word's next review."""
+def schedule(word_id, mode, when, user_id):
+    """Backdate (or postdate) a word's next review for one account."""
     conn = database.get_db()
-    conn.execute("INSERT INTO word_progress (word_id, mode) VALUES (?, ?)", (word_id, mode))
+    conn.execute("INSERT INTO word_progress (word_id, mode, user_id) VALUES (?, ?, ?)",
+                 (word_id, mode, user_id))
     conn.execute(
         "UPDATE word_progress SET next_review_at = ?, repetitions = 3 "
-        "WHERE word_id = ? AND mode = ?", (when, word_id, mode))
+        "WHERE word_id = ? AND mode = ? AND user_id = ?", (when, word_id, mode, user_id))
     conn.commit()
     conn.close()
 
 
-def is_known(word_id):
+def is_known(word_id, user_id):
     conn = database.get_db()
-    row = conn.execute("SELECT manually_excluded FROM words WHERE id = ?", (word_id,)).fetchone()
+    row = conn.execute(
+        "SELECT known FROM user_word_flags WHERE word_id = ? AND user_id = ?",
+        (word_id, user_id)).fetchone()
     conn.close()
-    return bool(row["manually_excluded"])
+    return bool(row and row["known"])
 
 
 class TestDueQueue:
@@ -41,10 +44,11 @@ class TestDueQueue:
     def test_ordered_by_how_overdue(self, client, big_list):
         words = client.get(f"/api/lists/{big_list}/words").json()
         oldest, middle, newest, future = (w["id"] for w in words[:4])
-        schedule(oldest, "multiple_choice", "2020-01-01 00:00:00")
-        schedule(middle, "multiple_choice", "2021-01-01 00:00:00")
-        schedule(newest, "listening", "2022-01-01 00:00:00")
-        schedule(future, "multiple_choice", "2099-01-01 00:00:00")
+        uid = current_user_id(client)
+        schedule(oldest, "multiple_choice", "2020-01-01 00:00:00", uid)
+        schedule(middle, "multiple_choice", "2021-01-01 00:00:00", uid)
+        schedule(newest, "listening", "2022-01-01 00:00:00", uid)
+        schedule(future, "multiple_choice", "2099-01-01 00:00:00", uid)
 
         d = client.get("/api/progress/due").json()
         assert d["total"] == 3
@@ -57,7 +61,7 @@ class TestDueQueue:
     def test_known_words_drop_out(self, client, big_list):
         words = client.get(f"/api/lists/{big_list}/words").json()
         target = words[10]["id"]
-        schedule(target, "multiple_choice", "2020-01-01 00:00:00")
+        schedule(target, "multiple_choice", "2020-01-01 00:00:00", current_user_id(client))
         before = client.get("/api/progress/due").json()["total"]
 
         client.patch(f"/api/words/{target}/learned", json={"learned": True})
@@ -122,31 +126,34 @@ class TestRecentlySaved:
 class TestKnownOnTypingMastery:
     """Opt-in: mastering the typing mode marks the whole word known."""
 
-    def drive_to_mastery(self, word_id, mode, flag, rounds=12):
+    def drive_to_mastery(self, word_id, mode, flag, user_id, rounds=12):
         for _ in range(rounds):
             progress_engine.update_word_progress(
-                word_id, True, 900, mode, known_on_type_mastery=flag)
+                word_id, True, 900, mode, known_on_type_mastery=flag, user_id=user_id)
         conn = database.get_db()
         row = conn.execute(
-            "SELECT mastered FROM word_progress WHERE word_id=? AND mode=?",
-            (word_id, mode)).fetchone()
+            "SELECT mastered FROM word_progress WHERE word_id=? AND mode=? AND user_id=?",
+            (word_id, mode, user_id)).fetchone()
         conn.close()
         return bool(row["mastered"])
 
     def test_off_by_default(self, client, big_list):
+        uid = current_user_id(client)
         wid = client.get(f"/api/lists/{big_list}/words").json()[30]["id"]
-        assert self.drive_to_mastery(wid, TYPING, flag=False)
-        assert not is_known(wid)
+        assert self.drive_to_mastery(wid, TYPING, False, uid)
+        assert not is_known(wid, uid)
 
     def test_on_marks_word_known(self, client, big_list):
+        uid = current_user_id(client)
         wid = client.get(f"/api/lists/{big_list}/words").json()[31]["id"]
-        assert self.drive_to_mastery(wid, TYPING, flag=True)
-        assert is_known(wid)
+        assert self.drive_to_mastery(wid, TYPING, True, uid)
+        assert is_known(wid, uid)
 
     def test_only_the_typing_mode_counts(self, client, big_list):
+        uid = current_user_id(client)
         wid = client.get(f"/api/lists/{big_list}/words").json()[32]["id"]
-        assert self.drive_to_mastery(wid, "multiple_choice", flag=True)
-        assert not is_known(wid)
+        assert self.drive_to_mastery(wid, "multiple_choice", True, uid)
+        assert not is_known(wid, uid)
 
     def test_flag_travels_over_http(self, client, big_list):
         r = client.post("/api/game/start", json={
