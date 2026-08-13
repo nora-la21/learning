@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
-import type { Word, WordList } from '../types'
+import type { DueSummary, RecentWord, Word, WordList } from '../types'
 import UploadZone from '../components/UploadZone'
 import ThemeToggle from '../components/ThemeToggle'
 import { useSpeech } from '../hooks/useSpeech'
@@ -58,17 +58,23 @@ export default function HomePage() {
   const [showUpload, setShowUpload] = useState(false)
   const [loading, setLoading] = useState(true)
   const [importMsg, setImportMsg] = useState('')
+  const [due, setDue] = useState<DueSummary | null>(null)
+  const [recent, setRecent] = useState<RecentWord[]>([])
   const navigate = useNavigate()
 
   const load = async () => {
     setLoading(true)
     try {
-      const [b, m] = await Promise.all([
+      const [b, m, d, r] = await Promise.all([
         api.getLists(true),
         api.getLists(false),
+        api.getDue().catch(() => null),
+        api.getRecentWords().catch(() => []),
       ])
       setBuiltinLists(b)
       setMyLists(m)
+      setDue(d)
+      setRecent(r)
     } finally {
       setLoading(false)
     }
@@ -138,6 +144,35 @@ export default function HomePage() {
             )}
           </div>
         </div>
+
+        {/* Due for review — the spaced-repetition schedule's daily prompt */}
+        {due && due.total > 0 && (
+          <div className="bg-ink rounded-2xl p-5 mb-4 flex items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] uppercase tracking-[.15em] text-white/50 font-medium mb-1">Due for review</p>
+              <p className="text-white text-[22px] font-semibold leading-tight">
+                {due.total} {due.total === 1 ? 'word' : 'words'} ready
+              </p>
+              <p className="text-white/60 text-xs mt-1 truncate">
+                {due.by_list.slice(0, 2).map(l => `${l.name} (${l.count})`).join(' · ')}
+                {due.by_list.length > 2 && ` · +${due.by_list.length - 2} more`}
+              </p>
+            </div>
+            <button
+              onClick={() => navigate(`/learn/${due.primary_list_id}?words=${due.word_ids.join(',')}&review=1`)}
+              className="px-5 py-2.5 bg-white text-ink rounded-[9px] text-sm font-semibold hover:opacity-90 transition shrink-0"
+            >Review now →</button>
+          </div>
+        )}
+
+        {/* Recently saved — mostly words captured by the browser extension */}
+        {recent.length > 0 && (
+          <RecentlySaved
+            words={recent}
+            onPractice={ids => navigate(`/learn/${recent[0].list_id}?words=${ids.join(',')}`)}
+            onDeleted={id => setRecent(ws => ws.filter(w => w.id !== id))}
+          />
+        )}
 
         {/* Voice picker */}
         <VoicePicker />
@@ -236,6 +271,94 @@ const NL_VOICES = [
   { name: 'nl-BE-DenaNeural',    label: 'Dena (BE)', icon: '♀' },
   { name: 'nl-BE-ArnaudNeural',  label: 'Arnaud (BE)', icon: '♂' },
 ]
+
+function RecentlySaved({
+  words, onPractice, onDeleted,
+}: {
+  words: RecentWord[]
+  onPractice: (ids: number[]) => void
+  onDeleted: (id: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState<number | null>(null)
+  const shown = open ? words : words.slice(0, 6)
+
+  const remove = async (w: RecentWord) => {
+    setBusy(w.id)
+    try {
+      await api.deleteWord(w.id)
+      onDeleted(w.id)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const markKnown = async (w: RecentWord) => {
+    setBusy(w.id)
+    try {
+      await api.setWordLearned(w.id, true)
+      onDeleted(w.id)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="bg-surface rounded-2xl border border-border p-5 mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[.15em] text-ghost font-medium">Saved this week</p>
+          <p className="text-ink text-[15px] font-semibold mt-0.5">
+            {words.length} {words.length === 1 ? 'word' : 'words'} captured
+          </p>
+        </div>
+        {words.length >= 4 && (
+          <button
+            onClick={() => onPractice(words.map(w => w.id))}
+            className="px-4 py-2 bg-ink text-white rounded-[9px] text-sm font-medium hover:opacity-80 transition shrink-0"
+          >Practice these</button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {shown.map(w => (
+          <span
+            key={w.id}
+            className={`group inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg border border-border text-sm transition-opacity ${
+              busy === w.id ? 'opacity-40' : ''
+            }`}
+            title={`${w.source_word} → ${w.target_word}  ·  ${w.list_name}`}
+          >
+            <span className="text-ink font-medium">{w.source_word}</span>
+            <span className="text-ghost text-xs">{w.target_word}</span>
+            <button
+              onClick={() => markKnown(w)}
+              disabled={busy === w.id}
+              className="text-ghost hover:text-moss px-1 leading-none"
+              title="Already know this — skip it in practice"
+            >✓</button>
+            <button
+              onClick={() => remove(w)}
+              disabled={busy === w.id}
+              className="text-ghost hover:text-red-500 px-1 leading-none"
+              title="Delete"
+            >×</button>
+          </span>
+        ))}
+      </div>
+
+      {words.length > 6 && (
+        <button
+          onClick={() => setOpen(v => !v)}
+          className="text-xs text-accent hover:underline mt-3"
+        >{open ? 'Show less' : `Show all ${words.length}`}</button>
+      )}
+      {words.length < 4 && (
+        <p className="text-xs text-ghost mt-3">Save at least 4 words to practise them together.</p>
+      )}
+    </div>
+  )
+}
 
 function VoicePicker() {
   const [selected, setSelected] = useState(() => {

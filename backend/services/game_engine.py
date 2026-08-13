@@ -150,7 +150,7 @@ class GameSession:
 _sessions: dict[str, GameSession] = {}
 
 
-def create_session(list_id: int, mode: str, session_size: int, word_ids: list[int] | None = None, skip_mastered_modes: bool = False) -> GameSession:
+def create_session(list_id: int, mode: str, session_size: int, word_ids: list[int] | None = None, skip_mastered_modes: bool = False, preserve_order: bool = False) -> GameSession:
     if mode not in INDIVIDUAL_MODES and mode != "all_in_one":
         raise ValueError(f"Invalid mode: {mode}")
 
@@ -162,8 +162,19 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
         conn.close()
         raise ValueError("Word list not found")
 
+    # A review session passes its words already ordered by how overdue they are,
+    # so keep that order: trimming to session_size must drop the least urgent.
+    if word_ids is not None and preserve_order:
+        ph = ','.join('?' * len(word_ids))
+        rows = conn.execute(
+            f"SELECT id FROM words WHERE id IN ({ph}) AND manually_excluded = 0",
+            tuple(word_ids),
+        ).fetchall()
+        allowed = {r["id"] for r in rows}
+        pool = [wid for wid in word_ids if wid in allowed]
+
     # When specific word_ids provided, fetch those directly (supports multi-list sessions)
-    if word_ids is not None:
+    elif word_ids is not None:
         ph = ','.join('?' * len(word_ids))
         if mode == "all_in_one":
             all_words = conn.execute(

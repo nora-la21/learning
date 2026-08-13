@@ -12,7 +12,10 @@ router = APIRouter(prefix="/api/game", tags=["game"])
 @router.post("/start", response_model=GameStartResponse)
 def start_game(body: GameStartRequest):
     try:
-        session = game_engine.create_session(body.list_id, body.mode, body.session_size, body.word_ids, body.skip_mastered_modes)
+        session = game_engine.create_session(
+            body.list_id, body.mode, body.session_size, body.word_ids,
+            body.skip_mastered_modes, preserve_order=body.review,
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     return GameStartResponse(

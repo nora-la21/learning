@@ -73,6 +73,8 @@ class GameStartRequest(BaseModel):
     session_size: int = 20
     word_ids: Optional[list[int]] = None
     skip_mastered_modes: bool = False
+    # Review sessions supply word_ids sorted by how overdue each word is.
+    review: bool = False
 
 
 class GameStartResponse(BaseModel):
@@ -154,3 +156,25 @@ class WordProgressDetail(BaseModel):
 class HeatmapEntry(BaseModel):
     date: str
     count: int
+
+
+class DueListEntry(BaseModel):
+    list_id: int
+    name: str
+    count: int
+
+
+class DueSummary(BaseModel):
+    total: int
+    word_ids: list[int]
+    primary_list_id: Optional[int] = None
+    by_list: list[DueListEntry]
+
+
+class RecentWord(BaseModel):
+    id: int
+    source_word: str
+    target_word: str
+    list_id: int
+    list_name: str
+    created_at: str

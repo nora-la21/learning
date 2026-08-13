@@ -2,6 +2,7 @@ import type {
   WordList, Word, UploadPreview, UploadConfirmResponse,
   WordPair, GameStartResponse, GameQuestion, GameAnswerResponse,
   ProgressSummary, WordProgressDetail, HeatmapEntry, GameMode,
+  DueSummary, RecentWord,
 } from '../types'
 
 const BASE = '/api'
@@ -56,11 +57,11 @@ export const api = {
       body: JSON.stringify({ list_name: listName, source_lang: sourceLang, target_lang: targetLang, words, source_file: sourceFile }),
     }),
 
-  startGame: (listId: number, mode: GameMode, sessionSize = 20, wordIds?: number[], skipMasteredModes = false): Promise<GameStartResponse> =>
+  startGame: (listId: number, mode: GameMode, sessionSize = 20, wordIds?: number[], skipMasteredModes = false, review = false): Promise<GameStartResponse> =>
     req<GameStartResponse>('/game/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ list_id: listId, mode, session_size: sessionSize, word_ids: wordIds ?? null, skip_mastered_modes: skipMasteredModes }),
+      body: JSON.stringify({ list_id: listId, mode, session_size: sessionSize, word_ids: wordIds ?? null, skip_mastered_modes: skipMasteredModes, review }),
     }),
   nextQuestion: (sessionId: string) => req<GameQuestion>(`/game/next?session_id=${sessionId}`),
   submitAnswer: (sessionId: string, wordId: number, chosen: string, timeMs: number, knownOnTypeMastery = false): Promise<GameAnswerResponse> =>
@@ -79,4 +80,6 @@ export const api = {
   getProgressSummary: (listId: number) => req<ProgressSummary>(`/progress/summary?list_id=${listId}`),
   getWordProgress: (listId: number) => req<WordProgressDetail[]>(`/progress/words?list_id=${listId}`),
   getHeatmap: () => req<HeatmapEntry[]>('/progress/heatmap'),
+  getDue: () => req<DueSummary>('/progress/due'),
+  getRecentWords: (days = 7) => req<RecentWord[]>(`/words/recent?days=${days}`),
 }

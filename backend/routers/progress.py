@@ -1,5 +1,8 @@
 from fastapi import APIRouter, HTTPException
-from models import ProgressSummary, WordProgressDetail, WordModeProgress, HeatmapEntry
+from models import (
+    ProgressSummary, WordProgressDetail, WordModeProgress, HeatmapEntry,
+    DueSummary, DueListEntry,
+)
 from database import get_db
 
 router = APIRouter(prefix="/api/progress", tags=["progress"])
@@ -119,6 +122,51 @@ def get_word_progress(list_id: int):
 
     conn.close()
     return result
+
+
+@router.get("/due", response_model=DueSummary)
+def get_due(limit: int = 200):
+    """Words the spaced-repetition schedule says are ready to review.
+
+    A word counts as due when any single mode has come up for review; the
+    ordering is by how overdue it is, so truncating to `limit` keeps the most
+    urgent words rather than an arbitrary slice.
+    """
+    conn = get_db()
+    rows = conn.execute(
+        "SELECT w.id, w.list_id, MIN(wp.next_review_at) AS due_at "
+        "FROM words w JOIN word_progress wp ON wp.word_id = w.id "
+        "WHERE w.manually_excluded = 0 AND wp.next_review_at <= datetime('now') "
+        "GROUP BY w.id, w.list_id "
+        "ORDER BY due_at ASC"
+    ).fetchall()
+
+    counts: dict[int, int] = {}
+    for r in rows:
+        counts[r["list_id"]] = counts.get(r["list_id"], 0) + 1
+
+    by_list: list[DueListEntry] = []
+    if counts:
+        ph = ','.join('?' * len(counts))
+        names = {
+            n["id"]: n["name"]
+            for n in conn.execute(
+                f"SELECT id, name FROM word_lists WHERE id IN ({ph})", tuple(counts)
+            ).fetchall()
+        }
+        by_list = [
+            DueListEntry(list_id=lid, name=names.get(lid, "?"), count=cnt)
+            for lid, cnt in sorted(counts.items(), key=lambda kv: -kv[1])
+        ]
+    conn.close()
+
+    word_ids = [r["id"] for r in rows[:limit]]
+    return DueSummary(
+        total=len(rows),
+        word_ids=word_ids,
+        primary_list_id=rows[0]["list_id"] if rows else None,
+        by_list=by_list,
+    )
 
 
 @router.get("/heatmap", response_model=list[HeatmapEntry])

@@ -114,3 +114,25 @@ export type GameMode =
   | 'listening'
   | 'reverse_type_it'
   | 'all_in_one'
+
+export interface DueListEntry {
+  list_id: number
+  name: string
+  count: number
+}
+
+export interface DueSummary {
+  total: number
+  word_ids: number[]
+  primary_list_id: number | null
+  by_list: DueListEntry[]
+}
+
+export interface RecentWord {
+  id: number
+  source_word: string
+  target_word: string
+  list_id: number
+  list_name: string
+  created_at: string
+}

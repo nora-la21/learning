@@ -1,7 +1,10 @@
 from fastapi import APIRouter, HTTPException, Query
 from typing import Optional
 from database import get_db
-from models import WordListResponse, WordResponse, WordUpdate, SetLearnedRequest, ResetProgressRequest
+from models import (
+    WordListResponse, WordResponse, WordUpdate, SetLearnedRequest,
+    ResetProgressRequest, RecentWord,
+)
 from pydantic import BaseModel
 
 import re
@@ -162,6 +165,28 @@ def quick_add_word(body: QuickAddRequest):
     conn.commit()
     conn.close()
     return dict(word)
+
+
+@router.get("/words/recent", response_model=list[RecentWord])
+def recent_words(days: int = 7, limit: int = 100):
+    """Words captured recently, newest first — mostly the browser extension's output.
+
+    Built-in lists are excluded: they are seeded in bulk at startup and would
+    otherwise swamp everything the user actually saved.
+    """
+    conn = get_db()
+    # The interval is inlined rather than bound: the Postgres adapter rewrites
+    # datetime('now', '-N days') by pattern, which a placeholder would not match.
+    # int() keeps that safe.
+    rows = conn.execute(
+        "SELECT w.id, w.source_word, w.target_word, w.list_id, w.created_at, "
+        "wl.name AS list_name "
+        "FROM words w JOIN word_lists wl ON wl.id = w.list_id "
+        f"WHERE wl.builtin = 0 AND w.created_at >= datetime('now', '-{int(days)} days') "
+        "ORDER BY w.created_at DESC, w.id DESC"
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows[:limit]]
 
 
 @router.post("/lists", status_code=201)

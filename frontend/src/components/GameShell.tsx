@@ -21,6 +21,7 @@ interface Props {
   sessionSize?: number | null
   wordIds?: number[]
   skipMasteredModes?: boolean
+  review?: boolean
   onBack: () => void
 }
 
@@ -33,7 +34,7 @@ type FeedbackState = {
 
 export type AnswerFeedback = { correct: boolean; almost: boolean; correctAnswer: string } | null
 
-export default function GameShell({ listId, mode, sessionSize = 10, wordIds, skipMasteredModes = false, onBack }: Props) {
+export default function GameShell({ listId, mode, sessionSize = 10, wordIds, skipMasteredModes = false, review = false, onBack }: Props) {
   const effectiveSize = sessionSize ?? 9999
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [question, setQuestion] = useState<GameQuestion | null>(null)
@@ -80,7 +81,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
     setXp(0)
     setStreak(0)
     try {
-      const session = await api.startGame(listId, mode, effectiveSize, wordIds, skipMasteredModes)
+      const session = await api.startGame(listId, mode, effectiveSize, wordIds, skipMasteredModes, review)
       setSessionId(session.session_id)
       setTotal(session.total)
       await loadNext(session.session_id)

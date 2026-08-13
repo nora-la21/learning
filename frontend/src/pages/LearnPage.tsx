@@ -24,12 +24,15 @@ export default function LearnPage() {
   const navigate = useNavigate()
   const id = Number(listId)
 
+  const params = new URLSearchParams(window.location.search)
   const wordIds = (() => {
-    const raw = new URLSearchParams(window.location.search).get('words')
+    const raw = params.get('words')
     if (!raw) return undefined
     const ids = raw.split(',').map(Number).filter(Boolean)
     return ids.length > 0 ? ids : undefined
   })()
+  // A review session keeps the server's most-overdue-first ordering.
+  const isReview = params.get('review') === '1'
 
   if (selectedMode) {
     return (
@@ -41,6 +44,7 @@ export default function LearnPage() {
             sessionSize={sessionSize}
             wordIds={wordIds}
             skipMasteredModes={skipMasteredModes}
+            review={isReview}
             onBack={() => setSelectedMode(null)}
           />
         </div>
