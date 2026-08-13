@@ -4,6 +4,7 @@ The app was written against sqlite3. Rather than rewrite ~60 call sites, this
 module adapts psycopg to the same surface: `?` placeholders, `execute()`
 returning a cursor, rows indexable by name or position, and `lastrowid`.
 """
+import os
 import re
 from datetime import date, datetime
 
@@ -82,14 +83,50 @@ class Cursor:
         return self._cur.rowcount
 
 
+_pool = None
+_pool_dsn = None
+
+
+def _configure(conn) -> None:
+    # Hosted Postgres is usually reached through PgBouncer. In transaction
+    # pooling mode a server connection is reused between statements, so
+    # psycopg's automatic prepared statements would be looked up on a backend
+    # that never declared them ("prepared statement does not exist").
+    conn.prepare_threshold = None
+
+
+def _get_pool(dsn: str):
+    """One pool per process.
+
+    Every request used to open its own connection, which against a hosted
+    database means a TCP and TLS handshake per request — and answering a
+    question opens two. Pooling keeps a small set of connections warm instead.
+    """
+    global _pool, _pool_dsn
+    if _pool is None or _pool_dsn != dsn:
+        from psycopg_pool import ConnectionPool
+        if _pool is not None:
+            _pool.close()
+        # Free tiers cap connections, and this is a single-process app, so the
+        # pool stays small. check=... revives connections a sleeping host dropped.
+        _pool = ConnectionPool(
+            dsn,
+            min_size=1,
+            max_size=int(os.environ.get("DB_POOL_MAX", "5")),
+            kwargs={"row_factory": _row_factory},
+            configure=_configure,
+            check=ConnectionPool.check_connection,
+            open=True,
+        )
+        _pool_dsn = dsn
+    return _pool
+
+
 class Connection:
     def __init__(self, dsn: str):
-        self._conn = psycopg.connect(dsn, row_factory=_row_factory)
-        # Hosted Postgres is usually reached through PgBouncer. In transaction
-        # pooling mode a server connection is reused between statements, so
-        # psycopg's automatic prepared statements would be looked up on a backend
-        # that never declared them ("prepared statement does not exist").
-        self._conn.prepare_threshold = None
+        self._pool = _get_pool(dsn)
+        self._conn = self._pool.getconn()
+        self._released = False
 
     def execute(self, sql: str, params=()) -> Cursor:
         sql = translate(sql)
@@ -126,7 +163,17 @@ class Connection:
         self._conn.rollback()
 
     def close(self) -> None:
-        self._conn.close()
+        """Return the connection to the pool rather than dropping it."""
+        if self._released:
+            return
+        self._released = True
+        try:
+            # Callers commit explicitly; anything still open is unfinished work
+            # and must not leak into whoever checks this connection out next.
+            self._conn.rollback()
+        except Exception:
+            pass
+        self._pool.putconn(self._conn)
 
 
 SCHEMA = """
