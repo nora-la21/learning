@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from database import DB_PATH, USE_POSTGRES, init_db, seed_builtin_lists
-from routers import words, upload, game, progress, tts
+from routers import words, upload, game, progress, tts, push
 from services.transfer import export_all, import_all
 
 
@@ -48,6 +48,7 @@ app.include_router(upload.router)
 app.include_router(game.router)
 app.include_router(progress.router)
 app.include_router(tts.router)
+app.include_router(push.router)
 
 
 @app.get("/api/health")

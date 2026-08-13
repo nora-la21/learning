@@ -221,6 +221,12 @@ CREATE TABLE IF NOT EXISTS answer_events (
     answered_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS push_subscriptions (
+    id         SERIAL PRIMARY KEY,
+    endpoint   TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT NOW()
+);
+
 -- Every table carries an id: the adapter appends RETURNING id to inserts to
 -- stand in for sqlite3's lastrowid, so a table without one breaks on insert.
 CREATE TABLE IF NOT EXISTS game_sessions (

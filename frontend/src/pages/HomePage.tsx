@@ -4,6 +4,7 @@ import { api } from '../api/client'
 import type { DueSummary, RecentWord, Word, WordList } from '../types'
 import UploadZone from '../components/UploadZone'
 import ThemeToggle from '../components/ThemeToggle'
+import ReminderToggle from '../components/ReminderToggle'
 import { useSpeech } from '../hooks/useSpeech'
 
 const FLAG: Record<string, string> = {
@@ -151,6 +152,7 @@ export default function HomePage() {
           </div>
           <div className="flex items-center gap-2">
             <ThemeToggle />
+            <ReminderToggle />
             <button
               onClick={handleExport}
               className="px-3 py-2 border border-border text-muted rounded-lg text-xs font-medium hover:text-ink hover:border-ink transition"
