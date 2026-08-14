@@ -173,3 +173,53 @@ class TestKnownOnTypingMastery:
         assert client.post("/api/game/answer", json={
             "session_id": sid, "word_id": q["word_id"],
             "chosen": "zzz", "time_ms": 800}).status_code == 200
+
+
+class TestMasteryIgnoresSpeed:
+    """Mastery is five correct answers in a row, however long each one took.
+
+    Answers used to be graded on speed: over five seconds scored 3, which held
+    the ease factor flat so the interval never reached the 21 days mastery
+    requires. A slower learner could answer correctly indefinitely and never
+    master anything.
+    """
+
+    def reps_until_mastered(self, word_id, user_id, time_ms, mode="reverse_type_it"):
+        for n in range(1, 10):
+            progress_engine.update_word_progress(
+                word_id, True, time_ms, mode, user_id=user_id)
+            conn = database.get_db()
+            row = conn.execute(
+                "SELECT mastered FROM word_progress "
+                "WHERE word_id=? AND mode=? AND user_id=?",
+                (word_id, mode, user_id)).fetchone()
+            conn.close()
+            if row and row["mastered"]:
+                return n
+        return None
+
+    @pytest.mark.parametrize("time_ms", [500, 3000, 9000, 60000])
+    def test_five_in_a_row_masters_at_any_speed(self, client, big_list, time_ms):
+        uid = current_user_id(client)
+        words = client.get(f"/api/lists/{big_list}/words").json()
+        # A different word per speed, so the runs cannot interfere.
+        word_id = words[40 + [500, 3000, 9000, 60000].index(time_ms)]["id"]
+        assert self.reps_until_mastered(word_id, uid, time_ms) == 5
+
+    def test_a_wrong_answer_restarts_the_streak(self, client, big_list):
+        uid = current_user_id(client)
+        word_id = client.get(f"/api/lists/{big_list}/words").json()[45]["id"]
+        for _ in range(4):
+            progress_engine.update_word_progress(
+                word_id, True, 9000, "listening", user_id=uid)
+        progress_engine.update_word_progress(
+            word_id, False, 9000, "listening", user_id=uid)
+
+        conn = database.get_db()
+        row = conn.execute(
+            "SELECT repetitions, mastered FROM word_progress "
+            "WHERE word_id=? AND mode=? AND user_id=?",
+            (word_id, "listening", uid)).fetchone()
+        conn.close()
+        assert row["repetitions"] == 0
+        assert not row["mastered"]

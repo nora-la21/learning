@@ -71,15 +71,17 @@ def update_word_progress(
 
 
 def _response_quality(correct: bool, time_ms: int) -> int:
-    if not correct:
-        return 2
-    seconds = time_ms / 1000
-    if seconds > 5:
-        return 3
-    elif seconds > 2:
-        return 4
-    else:
-        return 5
+    """A correct answer is a correct answer, however long it took.
+
+    Grading on speed meant anything over five seconds scored 3: correct enough
+    to count, but not enough to grow the ease factor, so the interval crept up
+    too slowly to ever reach the 21 days mastery needs. Someone who thinks
+    carefully could answer correctly forever and never master a word.
+
+    Response time is still recorded on every answer event; it just no longer
+    decides the schedule.
+    """
+    return 5 if correct else 2
 
 
 def _sm2(reps: int, ef: float, interval: int, correct: bool, quality: int) -> tuple[int, float, int]:
