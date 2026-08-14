@@ -4,8 +4,8 @@ from conftest import biggest_builtin
 
 def test_builtin_lists_are_seeded(client):
     lists = client.get("/api/lists").json()
-    assert len(lists) >= 100
-    assert sum(l.get("word_count") or 0 for l in lists) > 2000
+    assert len(lists) >= 40
+    assert sum(l.get("word_count") or 0 for l in lists) > 1500
 
 
 def test_create_list_returns_a_real_id(client):

@@ -202,7 +202,7 @@ class TestFirstAccountAdoptsExistingData:
         unowned = db.execute(
             "SELECT COUNT(*) AS n FROM word_lists WHERE builtin = 1 AND user_id IS NULL"
         ).fetchone()["n"]
-        assert unowned > 100
+        assert unowned > 30
 
     def test_only_the_first_account_adopts(self, client, db):
         reset_database()

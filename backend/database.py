@@ -228,6 +228,13 @@ def seed_builtin_lists() -> None:
         conn.close()
         return
 
+    # 1b. Re-home words whose category changed.
+    #     The built-in lists were reorganised, so a word that already exists is
+    #     usually sitting under its old list. Moving the row keeps its id, and
+    #     with it every bit of practice history; letting the insert below create
+    #     a fresh row instead would silently orphan all of that progress.
+    _rehome_builtin_words(conn, list_ids, BUILTIN_LISTS)
+
     # 2. Read every existing word for those lists in one query.
     ids = list(list_ids.values())
     ph = ','.join('?' * len(ids))
@@ -274,3 +281,79 @@ def seed_builtin_lists() -> None:
 
     conn.commit()
     conn.close()
+
+
+def _rehome_builtin_words(conn, list_ids: dict, corpus) -> None:
+    """Move existing built-in words into their new category.
+
+    Words are identified by (list_id, source_word), so a reorganisation would
+    otherwise insert duplicates and leave the originals — along with their
+    practice history — stranded in lists the user can no longer see.
+
+    Where the same word ends up in two rows, the one carrying progress wins;
+    the reorganisation merged categories that previously overlapped, so those
+    collisions are expected rather than exceptional.
+    """
+    target_of = {}
+    bare_forms = set()
+    for item in corpus:
+        list_id = list_ids.get(item["name"])
+        if list_id is None:
+            continue
+        for source, _ in item["words"]:
+            target_of[source] = list_id
+            # An older database may hold "hond" where the corpus now says
+            # "de hond". Those rows are upgraded in place further down, so they
+            # must survive this pass rather than being deleted as unknown.
+            if source.startswith(("de ", "het ")):
+                bare_forms.add(source.split(" ", 1)[1])
+
+    rows = conn.execute(
+        "SELECT w.id, w.list_id, w.source_word FROM words w "
+        "JOIN word_lists wl ON wl.id = w.list_id WHERE wl.builtin = 1"
+    ).fetchall()
+    if not rows:
+        return
+
+    def has_progress(word_id: int) -> bool:
+        return bool(conn.execute(
+            "SELECT 1 AS present FROM word_progress WHERE word_id = ? LIMIT 1", (word_id,)
+        ).fetchone())
+
+    occupant: dict[tuple, int] = {}
+    for row in rows:
+        if row["list_id"] == target_of.get(row["source_word"]):
+            occupant[(row["list_id"], row["source_word"])] = row["id"]
+
+    for row in rows:
+        target = target_of.get(row["source_word"])
+        if target is None:
+            if row["source_word"] in bare_forms:
+                continue    # left for the article upgrade
+            # Dropped from the built-in corpus entirely.
+            conn.execute("DELETE FROM words WHERE id = ?", (row["id"],))
+            continue
+        if row["list_id"] == target:
+            continue
+
+        key = (target, row["source_word"])
+        sitting = occupant.get(key)
+        if sitting is None:
+            conn.execute("UPDATE words SET list_id = ? WHERE id = ?", (target, row["id"]))
+            occupant[key] = row["id"]
+        elif has_progress(row["id"]) and not has_progress(sitting):
+            # The row being moved is the one worth keeping.
+            conn.execute("DELETE FROM words WHERE id = ?", (sitting,))
+            conn.execute("UPDATE words SET list_id = ? WHERE id = ?", (target, row["id"]))
+            occupant[key] = row["id"]
+        else:
+            conn.execute("DELETE FROM words WHERE id = ?", (row["id"],))
+
+    # Built-in lists that no longer exist in the corpus.
+    keep = set(list_ids.values())
+    for stale in conn.execute(
+        "SELECT id FROM word_lists WHERE builtin = 1"
+    ).fetchall():
+        if stale["id"] not in keep:
+            conn.execute("DELETE FROM word_lists WHERE id = ?", (stale["id"],))
+    conn.commit()

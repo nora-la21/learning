@@ -42,10 +42,20 @@ def test_both_forms_survive_when_the_corpus_ships_both():
 def test_bare_noun_is_upgraded_in_place():
     """A word stored bare by an older version gains its article without duplicating."""
     reset_database()
+    # The bare form must not itself be a corpus word: "de boeken" reduces to
+    # "boeken", which is a separate entry elsewhere, so the regrouping claims
+    # that row before the article upgrade ever sees it. Pick an unambiguous one.
+    from data.builtin_words import BUILTIN_LISTS
+    corpus = {w for item in BUILTIN_LISTS for w, _ in item["words"]}
     conn = database.get_db()
-    row = conn.execute(
-        "SELECT id, list_id, source_word, target_word FROM words "
-        "WHERE source_word LIKE 'de %' LIMIT 1").fetchone()
+    row = None
+    for candidate in conn.execute(
+            "SELECT id, list_id, source_word, target_word FROM words "
+            "WHERE source_word LIKE 'de %' ORDER BY id").fetchall():
+        if candidate["source_word"].split(" ", 1)[1] not in corpus:
+            row = candidate
+            break
+    assert row is not None
     word_id, list_id = row["id"], row["list_id"]
     full, target = row["source_word"], row["target_word"]
     bare = full.split(" ", 1)[1]
