@@ -212,3 +212,68 @@ class TestGapsAreFilled:
         for phrase in ["Tot ziens", "Het spijt me", "Geen probleem",
                        "Ik begrijp het niet", "Kunt u dat herhalen"]:
             assert phrase in every, f"missing phrase {phrase}"
+
+
+class TestNounArticles:
+    """A Dutch noun without its article is half-learned.
+
+    "de" or "het" is not decoration — it governs adjective endings and relative
+    pronouns, and there is no rule that predicts it, so it has to be memorised
+    with the word.
+    """
+
+    # Entries whose English gloss opens with "the" but which are not nouns
+    # taking an article: the articles themselves, adverbs of time, a pronoun,
+    # and a country name.
+    NOT_ARTICLE_NOUNS = {"de", "het", "eergisteren", "overmorgen",
+                         "hetzelfde", "Nederland"}
+
+    # A bare form and an article form of the same spelling, where they are
+    # genuinely different words rather than a duplicate.
+    HOMONYMS = {"dag", "haar", "recht", "eten", "zout", "bij", "boeken",
+                "Nederlands", "fout", "Duits", "Engels", "Frans", "Pools",
+                "Turks", "weer"}
+
+    def entries(self):
+        return {s: t for i in BUILTIN_LISTS for s, t in i["words"]}
+
+    def test_every_noun_carries_de_or_het(self):
+        for source, target in self.entries().items():
+            if not target.lower().startswith("the "):
+                continue
+            if source in self.NOT_ARTICLE_NOUNS:
+                continue
+            assert source.startswith(("de ", "het ")), f"{source!r} ({target}) has no article"
+
+    def test_no_noun_is_stored_both_with_and_without_its_article(self):
+        entries = self.entries()
+        for source in entries:
+            for article in ("de ", "het "):
+                if article + source in entries:
+                    assert source in self.HOMONYMS, (
+                        f"{source!r} duplicates {article + source!r}")
+
+    def test_homonyms_say_which_is_which(self):
+        """Otherwise the pair looks like an inconsistency rather than two words."""
+        entries = self.entries()
+        for bare in self.HOMONYMS:
+            if bare not in entries:
+                continue
+            gloss = entries[bare]
+            assert "(" in gloss, (
+                f"{bare!r} sits beside its article form but its gloss {gloss!r} "
+                "does not distinguish them")
+
+    def test_known_het_words_are_not_filed_under_de(self):
+        words = set(self.entries())
+        for noun in ["huis", "kind", "boek", "water", "brood", "meisje", "jaar",
+                     "geld", "werk", "land", "bed", "glas", "oog", "hoofd",
+                     "been", "gezicht", "station", "ziekenhuis", "museum"]:
+            assert f"de {noun}" not in words, f"'de {noun}' should be 'het {noun}'"
+
+    def test_known_de_words_are_not_filed_under_het(self):
+        words = set(self.entries())
+        for noun in ["man", "vrouw", "fiets", "auto", "tafel", "stoel", "deur",
+                     "hand", "voet", "arm", "rug", "stad", "straat", "school",
+                     "winkel", "trein", "bus", "hond", "kat"]:
+            assert f"het {noun}" not in words, f"'het {noun}' should be 'de {noun}'"
