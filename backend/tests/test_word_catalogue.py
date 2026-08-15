@@ -144,3 +144,71 @@ class TestReorganisationKeepsProgress:
         conn.close()
         assert lists == len(BUILTIN_LISTS)
         assert words == sum(len(i["words"]) for i in BUILTIN_LISTS)
+
+
+class TestFixedPrepositions:
+    """A Dutch verb's fixed preposition is not optional, so it is part of the entry.
+
+    Storing "wachten" alone teaches half the word: the learner still has to
+    guess between op, aan, voor and naar. Practising "wachten op" drills the
+    preposition along with the verb, and the typing mode will not accept the
+    verb without it.
+    """
+
+    CATEGORY = "🇳🇱 Dutch A2 — Verbs with Fixed Prepositions"
+    PREPOSITIONS = {"op", "aan", "van", "voor", "met", "over",
+                    "naar", "in", "bij", "uit", "om", "tot"}
+
+    def category(self):
+        return next(i for i in BUILTIN_LISTS if i["name"] == self.CATEGORY)
+
+    def test_category_exists_and_is_substantial(self):
+        assert len(self.category()["words"]) >= 90
+
+    def test_every_entry_carries_its_preposition_or_zich(self):
+        for source, _ in self.category()["words"]:
+            trailing = source.split()[-1]
+            assert trailing in self.PREPOSITIONS or source.startswith("zich"), source
+
+    def test_the_expected_verbs_are_present_with_the_right_preposition(self):
+        entries = dict(self.category()["words"])
+        for phrase in [
+            "verliefd zijn op", "zich verheugen op", "wachten op", "denken aan",
+            "houden van", "luisteren naar", "bang zijn voor", "trots zijn op",
+            "zich zorgen maken over", "bestaan uit", "deelnemen aan",
+            "geïnteresseerd zijn in", "horen bij", "beginnen met",
+        ]:
+            assert phrase in entries, f"missing {phrase}"
+
+    def test_a_bare_verb_and_its_prepositional_form_can_coexist(self):
+        """They are different lexical items and both are worth knowing."""
+        every = {w for i in BUILTIN_LISTS for w, _ in i["words"]}
+        assert "wachten" in every and "wachten op" in every
+        assert "denken" in every and "denken aan" in every
+
+    def test_reflexive_verbs_keep_zich(self):
+        entries = dict(self.category()["words"])
+        for phrase in ["zich verheugen op", "zich schamen voor", "zich ergeren aan"]:
+            assert phrase in entries
+
+
+class TestGapsAreFilled:
+    """Basic connectives and phrases a first course covers were absent."""
+
+    def test_core_conjunctions_present(self):
+        every = {w for i in BUILTIN_LISTS for w, _ in i["words"]}
+        for word in ["omdat", "want", "hoewel", "terwijl", "zodat",
+                     "voordat", "nadat", "tenzij", "zodra", "totdat"]:
+            assert word in every, f"missing conjunction {word}"
+
+    def test_core_adverbs_present(self):
+        every = {w for i in BUILTIN_LISTS for w, _ in i["words"]}
+        for word in ["waarschijnlijk", "meteen", "helemaal", "vooral",
+                     "zelfs", "nogal", "bijna", "eindelijk"]:
+            assert word in every, f"missing adverb {word}"
+
+    def test_everyday_phrases_present(self):
+        every = {w for i in BUILTIN_LISTS for w, _ in i["words"]}
+        for phrase in ["Tot ziens", "Het spijt me", "Geen probleem",
+                       "Ik begrijp het niet", "Kunt u dat herhalen"]:
+            assert phrase in every, f"missing phrase {phrase}"
