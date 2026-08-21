@@ -232,7 +232,10 @@ class TestNounArticles:
     # genuinely different words rather than a duplicate.
     HOMONYMS = {"dag", "haar", "recht", "eten", "zout", "bij", "boeken",
                 "Nederlands", "fout", "Duits", "Engels", "Frans", "Pools",
-                "Turks", "weer"}
+                "Turks", "weer",
+                # A verb or adjective beside its nominalised form:
+                # "duur" (expensive) vs "de duur" (the duration).
+                "duur", "overlijden", "vermoeden", "vertrouwen"}
 
     def entries(self):
         return {s: t for i in BUILTIN_LISTS for s, t in i["words"]}
