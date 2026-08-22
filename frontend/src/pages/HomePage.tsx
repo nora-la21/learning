@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import type { DueSummary, RecentWord, Word, WordList } from '../types'
 import UploadZone from '../components/UploadZone'
@@ -355,12 +355,14 @@ function VoicePicker() {
       <div className="flex flex-wrap gap-2">
         {NL_VOICES.map(v => (
           <button key={v.name} onClick={() => pick(v.name)} title={v.name}
-            className={`px-3 py-1.5 text-sm rounded-lg border transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-sm rounded-lg border transition inline-flex items-baseline gap-1.5 ${
               selected === v.name
                 ? 'border-accent text-accent font-medium'
                 : 'border-border text-muted hover:border-accent hover:text-accent'
             }`}>
-            <span className="text-base leading-none">{v.icon}</span>{v.label}
+            {/* Same font metrics as the label, so the glyph sits on the same
+                baseline instead of drifting below it. */}
+            <span aria-hidden="true">{v.icon}</span>{v.label}
           </button>
         ))}
       </div>
@@ -561,10 +563,16 @@ function ListCard({
               <p className="text-[10px] text-ghost group-hover:text-muted transition-colors">{list.mastered_count} mastered</p>
             </button>
           )}
+          {/* "Select" opens the checkbox view, whose point is practising a
+              subset; reading the list itself now has its own page. */}
           <button
             onClick={toggleBrowse}
             className="text-xs text-muted hover:text-ink transition-colors"
-          >{expanded ? 'Hide' : 'Browse'}</button>
+          >{expanded ? 'Hide' : 'Select'}</button>
+          <Link
+            to={`/study/${list.id}`}
+            className="px-3.5 py-1.5 text-sm rounded-[9px] border border-border text-muted font-medium hover:text-ink hover:border-ink transition"
+          >Study</Link>
           <button
             onClick={onPractice}
             className="px-3.5 py-1.5 text-sm rounded-[9px] bg-ink text-onink font-medium hover:opacity-80 transition"

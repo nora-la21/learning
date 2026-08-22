@@ -2,7 +2,7 @@ import type {
   WordList, Word, UploadPreview, UploadConfirmResponse,
   WordPair, GameStartResponse, GameQuestion, GameAnswerResponse,
   ProgressSummary, WordProgressDetail, HeatmapEntry, GameMode,
-  DueSummary, RecentWord,
+  DueSummary, RecentWord, MasteredWords,
   IrregularVerb, VerbSummary, VerbMode, VerbStartResponse, VerbQuestion,
   VerbAnswerResponse,
 } from '../types'
@@ -92,6 +92,7 @@ export const api = {
   getWordProgress: (listId: number) => req<WordProgressDetail[]>(`/progress/words?list_id=${listId}`),
   getHeatmap: () => req<HeatmapEntry[]>('/progress/heatmap'),
   getDue: () => req<DueSummary>('/progress/due'),
+  getMasteredWords: () => req<MasteredWords>('/progress/mastered'),
   resetAllProgress: () => req<void>('/progress/reset-all', { method: 'POST' }),
   getRecentWords: (days = 7) => req<RecentWord[]>(`/words/recent?days=${days}`),
 

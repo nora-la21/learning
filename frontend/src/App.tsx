@@ -3,6 +3,7 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import HomePage from './pages/HomePage'
 import LearnPage from './pages/LearnPage'
 import ProgressPage from './pages/ProgressPage'
+import StudyPage from './pages/StudyPage'
 import VerbsPage from './pages/VerbsPage'
 import ProfilePage from './pages/ProfilePage'
 import StatsPage from './pages/StatsPage'
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/learn/:listId" element={<LearnPage />} />
         <Route path="/progress/:listId" element={<ProgressPage />} />
+        <Route path="/study/:listId" element={<StudyPage />} />
         <Route path="/verbs" element={<VerbsPage />} />
         <Route path="/profile" element={<ProfilePage />} />
         <Route path="/stats" element={<StatsPage />} />

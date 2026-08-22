@@ -1,11 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from models import (
     ProgressSummary, WordProgressDetail, WordModeProgress, HeatmapEntry,
-    DueSummary, DueListEntry,
+    DueSummary, DueListEntry, MasteredWord, MasteredWords,
 )
 from database import get_db
 from routers.auth import current_user
-from services.scoping import known_join, NOT_KNOWN, owns_list
+from services.scoping import known_join, IS_KNOWN, NOT_KNOWN, owns_list
 
 router = APIRouter(prefix="/api/progress", tags=["progress"])
 
@@ -134,6 +134,56 @@ def get_word_progress(list_id: int, user=Depends(current_user)):
 
     conn.close()
     return result
+
+
+@router.get("/mastered", response_model=MasteredWords)
+def get_mastered(user=Depends(current_user)):
+    """Every word this account has mastered, across all the lists it can see.
+
+    The mastery test has to be the one the list counts use — flagged known, or
+    mastered in all four modes — or the number on the tile and the words behind
+    it would disagree, which is worse than not offering the drill-down at all.
+    """
+    conn = get_db()
+    uid = user["id"]
+    try:
+        rows = conn.execute(
+            "SELECT w.id AS word_id, w.source_word, w.target_word, "
+            "       w.list_id, wl.name AS list_name, "
+            f"       CASE WHEN {IS_KNOWN} THEN 1 ELSE 0 END AS marked_known, "
+            "       COALESCE(SUM(wp.mastered), 0) AS mastered_modes, "
+            "       COALESCE(SUM(wp.correct_count), 0) AS total_correct, "
+            "       COALESCE(SUM(wp.incorrect_count), 0) AS total_incorrect, "
+            "       MAX(wp.last_seen_at) AS last_seen_at "
+            "FROM words w "
+            "JOIN word_lists wl ON wl.id = w.list_id "
+            f"{known_join()} "
+            "LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.user_id = ? "
+            "WHERE (wl.builtin = 1 OR wl.user_id = ?) "
+            "GROUP BY w.id, w.source_word, w.target_word, w.list_id, wl.name, uwf.known "
+            f"HAVING {IS_KNOWN} OR COALESCE(SUM(wp.mastered), 0) >= ? "
+            "ORDER BY wl.name ASC, w.source_word ASC",
+            (uid, uid, uid, NUM_MODES),
+        ).fetchall()
+    finally:
+        conn.close()
+
+    words = [
+        MasteredWord(
+            word_id=r["word_id"],
+            source_word=r["source_word"],
+            target_word=r["target_word"],
+            list_id=r["list_id"],
+            list_name=r["list_name"],
+            marked_known=bool(r["marked_known"]),
+            mastered_modes=int(r["mastered_modes"] or 0),
+            total_correct=int(r["total_correct"] or 0),
+            total_incorrect=int(r["total_incorrect"] or 0),
+            last_seen_at=r["last_seen_at"],
+        )
+        for r in rows
+    ]
+    return MasteredWords(total=len(words), words=words)
 
 
 @router.get("/due", response_model=DueSummary)

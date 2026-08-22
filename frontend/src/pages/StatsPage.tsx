@@ -1,15 +1,32 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import NavMenu from '../components/NavMenu'
+import MasteredWordsPanel from '../components/MasteredWordsPanel'
 import { api } from '../api/client'
 import type { DueSummary, HeatmapEntry, VerbSummary, WordList } from '../types'
 
-function Stat({ value, label, tone }: { value: string | number; label: string; tone?: string }) {
-  return (
-    <div className="p-4 text-center">
+function Stat({ value, label, tone, onClick, active }: {
+  value: string | number
+  label: string
+  tone?: string
+  onClick?: () => void
+  active?: boolean
+}) {
+  const body = (
+    <>
       <div className={`text-[26px] font-semibold ${tone ?? 'text-ink'}`}>{value}</div>
-      <div className="text-[10px] uppercase tracking-[.12em] text-ghost mt-0.5">{label}</div>
-    </div>
+      <div className="text-[10px] uppercase tracking-[.12em] text-ghost mt-0.5">
+        {label}{onClick && <span className="ml-1">{active ? '▴' : '▾'}</span>}
+      </div>
+    </>
+  )
+  if (!onClick) return <div className="p-4 text-center">{body}</div>
+  return (
+    <button
+      onClick={onClick}
+      aria-expanded={Boolean(active)}
+      className={`p-4 text-center transition-colors hover:bg-paper ${active ? 'bg-paper' : ''}`}
+    >{body}</button>
   )
 }
 
@@ -47,6 +64,7 @@ export default function StatsPage() {
   const [heatmap, setHeatmap] = useState<HeatmapEntry[]>([])
   const [verbs, setVerbs] = useState<VerbSummary | null>(null)
   const [loading, setLoading] = useState(true)
+  const [showMastered, setShowMastered] = useState(false)
 
   useEffect(() => {
     Promise.all([
@@ -82,14 +100,17 @@ export default function StatsPage() {
         <div className="bg-surface rounded-2xl border border-border mb-4 grid grid-cols-2 sm:grid-cols-4 divide-x divide-y sm:divide-y-0 divide-border">
           <Stat value={totalWords} label="Words available" />
           <Stat value={seen} label="Practised" />
-          <Stat value={mastered} label="Mastered" tone="text-moss" />
+          <Stat value={mastered} label="Mastered" tone="text-moss"
+                onClick={() => setShowMastered(v => !v)} active={showMastered} />
           <Stat value={due?.total ?? 0} label="Due today" tone="text-accent" />
         </div>
+
+        {showMastered && <MasteredWordsPanel onClose={() => setShowMastered(false)} />}
 
         <div className="bg-surface rounded-2xl border border-border p-5 mb-4">
           <div className="flex items-baseline justify-between mb-2">
             <h2 className="font-semibold text-ink">Vocabulary mastered</h2>
-            <span className="text-sm text-muted font-mono">{pct}%</span>
+            <span className="text-sm text-muted font-mono">{mastered > 0 && pct === 0 ? '<1' : pct}%</span>
           </div>
           <div className="h-2 bg-track rounded-full overflow-hidden">
             <div className="h-full bg-ink transition-all" style={{ width: `${pct}%` }} />

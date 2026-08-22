@@ -137,6 +137,24 @@ export interface RecentWord {
   created_at: string
 }
 
+export interface MasteredWord {
+  word_id: number
+  source_word: string
+  target_word: string
+  list_id: number
+  list_name: string
+  marked_known: boolean
+  mastered_modes: number
+  total_correct: number
+  total_incorrect: number
+  last_seen_at: string | null
+}
+
+export interface MasteredWords {
+  total: number
+  words: MasteredWord[]
+}
+
 /** Which column of the conjugation table a question asks for. */
 export type VerbMode =
   | 'past_singular'

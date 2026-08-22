@@ -35,6 +35,26 @@ class WordResponse(BaseModel):
     learned: bool = False
 
 
+class MasteredWord(BaseModel):
+    word_id: int
+    source_word: str
+    target_word: str
+    list_id: int
+    list_name: str
+    # True when it was mastered by ticking "I already know this" rather than by
+    # practising it, which is worth showing: the two mean different things.
+    marked_known: bool
+    mastered_modes: int
+    total_correct: int
+    total_incorrect: int
+    last_seen_at: Optional[str] = None
+
+
+class MasteredWords(BaseModel):
+    total: int
+    words: list[MasteredWord]
+
+
 class WordUpdate(BaseModel):
     source_word: Optional[str] = None
     target_word: Optional[str] = None

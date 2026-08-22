@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import GameShell from '../components/GameShell'
 import NavMenu from '../components/NavMenu'
 import type { GameMode } from '../types'
@@ -64,7 +64,11 @@ export default function LearnPage() {
 
         <p className="text-[11px] uppercase tracking-[.15em] text-ghost font-medium mb-1">Session</p>
         <h1 className="text-[30px] font-semibold text-ink mb-1">Choose a practice mode</h1>
-        <p className="text-muted mb-5 text-sm">Wrong answers repeat until you get them right ✓</p>
+        <p className="text-muted mb-3 text-sm">Wrong answers repeat until you get them right ✓</p>
+        <Link
+          to={`/study/${listId}`}
+          className="inline-block text-sm text-accent hover:underline mb-5"
+        >Or just read the word list first →</Link>
 
         {/* Session size picker */}
         <div className="bg-surface rounded-2xl border border-border p-4 mb-3">
