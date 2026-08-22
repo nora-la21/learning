@@ -1,12 +1,22 @@
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from typing import Optional
 from database import get_db
-from models import WordListResponse, WordResponse, WordUpdate, SetLearnedRequest, ResetProgressRequest
+from routers.auth import current_user
+from services.scoping import known_join, NOT_KNOWN, owns_list, set_known, visible_word
+from models import (
+    WordListResponse, WordResponse, WordUpdate, SetLearnedRequest,
+    ResetProgressRequest, RecentWord,
+)
 from pydantic import BaseModel
 
 import re
 
 router = APIRouter(prefix="/api", tags=["words"])
+
+_WORD_WITH_FLAG = (
+    "SELECT w.*, CASE WHEN COALESCE(uwf.known, 0) = 1 THEN 1 ELSE 0 END as learned "
+    "FROM words w " + known_join() + " WHERE w.id = ?"
+)
 
 
 def _natural_sort_key(name: str):
@@ -18,35 +28,44 @@ def _natural_sort_key(name: str):
 
 
 @router.get("/lists", response_model=list[WordListResponse])
-def get_lists(builtin: Optional[bool] = Query(None)):
+def get_lists(builtin: Optional[bool] = Query(None), user=Depends(current_user)):
     conn = get_db()
+    uid = user["id"]
+    # Built-in lists are shared; custom lists belong to exactly one account.
+    visibility = "(wl.builtin = 1 OR wl.user_id = ?)"
+    params: list = []
     if builtin is True:
-        where = "WHERE wl.builtin = 1"
+        where = f"WHERE wl.builtin = 1 AND {visibility}"
     elif builtin is False:
-        where = "WHERE wl.builtin = 0"
+        where = f"WHERE wl.builtin = 0 AND {visibility}"
     else:
-        where = ""
+        where = f"WHERE {visibility}"
+    # seen/mastered are per account, so every progress lookup is filtered too.
     rows = conn.execute(f"""
         SELECT wl.*,
           COUNT(DISTINCT w.id) as word_count,
           (SELECT COUNT(DISTINCT ww3.id)
            FROM words ww3
            WHERE ww3.list_id = wl.id
-           AND (ww3.manually_excluded = 1
-                OR EXISTS (SELECT 1 FROM word_progress wp3 WHERE wp3.word_id = ww3.id))
+           AND (EXISTS (SELECT 1 FROM user_word_flags f3
+                        WHERE f3.word_id = ww3.id AND f3.user_id = ? AND f3.known = 1)
+                OR EXISTS (SELECT 1 FROM word_progress wp3
+                           WHERE wp3.word_id = ww3.id AND wp3.user_id = ?))
           ) as seen_count,
           (SELECT COUNT(DISTINCT ww2.id)
            FROM words ww2
            WHERE ww2.list_id = wl.id
-           AND (ww2.manually_excluded = 1
+           AND (EXISTS (SELECT 1 FROM user_word_flags f2
+                        WHERE f2.word_id = ww2.id AND f2.user_id = ? AND f2.known = 1)
                 OR (SELECT COALESCE(SUM(wp2.mastered), 0)
-                    FROM word_progress wp2 WHERE wp2.word_id = ww2.id) >= 4)) as mastered_count
+                    FROM word_progress wp2
+                    WHERE wp2.word_id = ww2.id AND wp2.user_id = ?) >= 4)) as mastered_count
         FROM word_lists wl
         LEFT JOIN words w ON w.list_id = wl.id
         {where}
         GROUP BY wl.id
         ORDER BY wl.builtin DESC, wl.name ASC
-    """).fetchall()
+    """, (uid, uid, uid, uid, uid)).fetchall()
     conn.close()
     result = [dict(r) for r in rows]
     result.sort(key=lambda r: (0 if r['builtin'] else 1, _natural_sort_key(r['name'])))
@@ -54,26 +73,36 @@ def get_lists(builtin: Optional[bool] = Query(None)):
 
 
 @router.get("/lists/{list_id}/words", response_model=list[WordResponse])
-def get_words(list_id: int):
+def get_words(list_id: int, exclude_mastered: bool = False, user=Depends(current_user)):
     conn = get_db()
-    row = conn.execute("SELECT id FROM word_lists WHERE id = ?", (list_id,)).fetchone()
-    if not row:
+    uid = user["id"]
+    if not owns_list(conn, uid, list_id):
         conn.close()
         raise HTTPException(status_code=404, detail="Word list not found")
-    words = conn.execute("""
-        SELECT w.*, w.manually_excluded as learned
+    mastery_filter = f"""
+        AND {NOT_KNOWN}
+        AND (SELECT COALESCE(SUM(wp.mastered), 0) FROM word_progress wp
+             WHERE wp.word_id = w.id AND wp.user_id = ?) < 4
+    """ if exclude_mastered else ""
+    params = [uid, list_id] + ([uid] if exclude_mastered else [])
+    words = conn.execute(f"""
+        SELECT w.*, CASE WHEN COALESCE(uwf.known, 0) = 1 THEN 1 ELSE 0 END as learned
         FROM words w
+        {known_join()}
         WHERE w.list_id = ?
+        {mastery_filter}
         ORDER BY w.source_word
-    """, (list_id,)).fetchall()
+    """, tuple(params)).fetchall()
     conn.close()
     return [dict(w) for w in words]
 
 
 @router.delete("/lists/{list_id}", status_code=204)
-def delete_list(list_id: int):
+def delete_list(list_id: int, user=Depends(current_user)):
     conn = get_db()
-    row = conn.execute("SELECT builtin FROM word_lists WHERE id = ?", (list_id,)).fetchone()
+    row = conn.execute(
+        "SELECT builtin FROM word_lists WHERE id = ? AND (builtin = 1 OR user_id = ?)",
+        (list_id, user["id"])).fetchone()
     if not row:
         conn.close()
         raise HTTPException(status_code=404, detail="Word list not found")
@@ -86,9 +115,12 @@ def delete_list(list_id: int):
 
 
 @router.patch("/words/{word_id}", response_model=WordResponse)
-def update_word(word_id: int, body: WordUpdate):
+def update_word(word_id: int, body: WordUpdate, user=Depends(current_user)):
     conn = get_db()
-    word = conn.execute("SELECT * FROM words WHERE id = ?", (word_id,)).fetchone()
+    word = conn.execute(
+        "SELECT w.* FROM words w JOIN word_lists wl ON wl.id = w.list_id "
+        "WHERE w.id = ? AND wl.builtin = 0 AND wl.user_id = ?",
+        (word_id, user["id"])).fetchone()
     if not word:
         conn.close()
         raise HTTPException(status_code=404, detail="Word not found")
@@ -105,23 +137,30 @@ def update_word(word_id: int, body: WordUpdate):
 
 
 @router.delete("/words/{word_id}", status_code=204)
-def delete_word(word_id: int):
+def delete_word(word_id: int, user=Depends(current_user)):
     conn = get_db()
-    result = conn.execute("DELETE FROM words WHERE id = ?", (word_id,))
+    # Only words in a list this account owns; built-ins are shared and immutable.
+    owned = conn.execute(
+        "SELECT w.id FROM words w JOIN word_lists wl ON wl.id = w.list_id "
+        "WHERE w.id = ? AND wl.builtin = 0 AND wl.user_id = ?",
+        (word_id, user["id"])).fetchone()
+    if not owned:
+        conn.close()
+        raise HTTPException(status_code=404, detail="Word not found")
+    conn.execute("DELETE FROM words WHERE id = ?", (word_id,))
     conn.commit()
     conn.close()
-    if result.rowcount == 0:
-        raise HTTPException(status_code=404, detail="Word not found")
 
 
 @router.patch("/words/{word_id}/learned", status_code=204)
-def set_word_learned(word_id: int, body: SetLearnedRequest):
+def set_word_learned(word_id: int, body: SetLearnedRequest, user=Depends(current_user)):
     conn = get_db()
-    word = conn.execute("SELECT id FROM words WHERE id = ?", (word_id,)).fetchone()
-    if not word:
+    if not visible_word(conn, user["id"], word_id):
         conn.close()
         raise HTTPException(status_code=404, detail="Word not found")
-    conn.execute("UPDATE words SET manually_excluded = ? WHERE id = ?", (1 if body.learned else 0, word_id))
+    # Per account: built-in words are shared, so this must not hide a word
+    # from everyone else who is studying the same list.
+    set_known(conn, user["id"], word_id, body.learned)
     conn.commit()
     conn.close()
 
@@ -133,9 +172,11 @@ class QuickAddRequest(BaseModel):
 
 
 @router.post("/words/quick-add", response_model=WordResponse)
-def quick_add_word(body: QuickAddRequest):
+def quick_add_word(body: QuickAddRequest, user=Depends(current_user)):
     conn = get_db()
-    lst = conn.execute("SELECT id FROM word_lists WHERE id = ?", (body.list_id,)).fetchone()
+    lst = conn.execute(
+        "SELECT id FROM word_lists WHERE id = ? AND builtin = 0 AND user_id = ?",
+        (body.list_id, user["id"])).fetchone()
     if not lst:
         conn.close()
         raise HTTPException(status_code=404, detail="Word list not found")
@@ -144,27 +185,51 @@ def quick_add_word(body: QuickAddRequest):
         (body.list_id, body.source_word),
     ).fetchone()
     if exists:
-        word = conn.execute("SELECT *, manually_excluded as learned FROM words WHERE id = ?", (exists["id"],)).fetchone()
+        word = conn.execute(_WORD_WITH_FLAG, (user["id"], exists["id"])).fetchone()
         conn.close()
         return dict(word)
     cursor = conn.execute(
         "INSERT INTO words (list_id, source_word, target_word) VALUES (?, ?, ?)",
         (body.list_id, body.source_word, body.target_word),
     )
-    word = conn.execute(
-        "SELECT *, manually_excluded as learned FROM words WHERE id = ?", (cursor.lastrowid,)
-    ).fetchone()
+    word = conn.execute(_WORD_WITH_FLAG, (user["id"], cursor.lastrowid)).fetchone()
     conn.commit()
     conn.close()
     return dict(word)
 
 
+@router.get("/words/recent", response_model=list[RecentWord])
+def recent_words(days: int = 7, limit: int = 100, user=Depends(current_user)):
+    """Words captured recently, newest first — mostly the browser extension's output.
+
+    Built-in lists are excluded: they are seeded in bulk at startup and would
+    otherwise swamp everything the user actually saved.
+    """
+    conn = get_db()
+    # The interval is inlined rather than bound: the Postgres adapter rewrites
+    # datetime('now', '-N days') by pattern, which a placeholder would not match.
+    # int() keeps that safe.
+    rows = conn.execute(
+        "SELECT w.id, w.source_word, w.target_word, w.list_id, w.created_at, "
+        "wl.name AS list_name "
+        "FROM words w JOIN word_lists wl ON wl.id = w.list_id "
+        f"WHERE wl.builtin = 0 AND wl.user_id = ? "
+        f"AND w.created_at >= datetime('now', '-{int(days)} days') "
+        "ORDER BY w.created_at DESC, w.id DESC",
+        (user["id"],)
+    ).fetchall()
+    conn.close()
+    return [dict(r) for r in rows[:limit]]
+
+
 @router.post("/lists", status_code=201)
-def create_list(name: str, source_lang: str = "nl", target_lang: str = "en"):
+def create_list(name: str, source_lang: str = "nl", target_lang: str = "en",
+                user=Depends(current_user)):
     conn = get_db()
     cursor = conn.execute(
-        "INSERT INTO word_lists (name, source_lang, target_lang, builtin) VALUES (?, ?, ?, 0)",
-        (name, source_lang, target_lang),
+        "INSERT INTO word_lists (name, source_lang, target_lang, builtin, user_id) "
+        "VALUES (?, ?, ?, 0, ?)",
+        (name, source_lang, target_lang, user["id"]),
     )
     conn.commit()
     list_id = cursor.lastrowid
@@ -173,11 +238,12 @@ def create_list(name: str, source_lang: str = "nl", target_lang: str = "en"):
 
 
 @router.post("/words/reset-progress", status_code=204)
-def reset_progress(body: ResetProgressRequest):
+def reset_progress(body: ResetProgressRequest, user=Depends(current_user)):
     if not body.word_ids:
         return
     conn = get_db()
     for wid in body.word_ids:
-        conn.execute("DELETE FROM word_progress WHERE word_id = ?", (wid,))
+        conn.execute("DELETE FROM word_progress WHERE word_id = ? AND user_id = ?",
+                     (wid, user["id"]))
     conn.commit()
     conn.close()

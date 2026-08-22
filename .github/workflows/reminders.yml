@@ -1,0 +1,34 @@
+name: daily review reminder
+
+# The backend sleeps on a free tier, so it cannot schedule anything itself.
+# This wakes it once a day and asks it to notify anyone with words due.
+on:
+  schedule:
+    - cron: '0 17 * * *'   # 17:00 UTC — early evening in the Netherlands
+  workflow_dispatch:        # lets you fire one manually to test
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Wake the backend
+        # A sleeping instance takes ~30-60s to boot; failures here are fine,
+        # the call below retries.
+        continue-on-error: true
+        run: curl -sS -m 120 "${{ secrets.BACKEND_URL }}/api/health" || true
+
+      - name: Send reminders
+        run: |
+          for attempt in 1 2 3; do
+            code=$(curl -sS -m 120 -o /tmp/out.json -w '%{http_code}' \
+              -X POST "${{ secrets.BACKEND_URL }}/api/push/send-due?key=${{ secrets.CRON_SECRET }}")
+            if [ "$code" = "200" ]; then
+              cat /tmp/out.json
+              exit 0
+            fi
+            echo "attempt $attempt failed with HTTP $code"
+            cat /tmp/out.json || true
+            sleep 30
+          done
+          echo "giving up after 3 attempts"
+          exit 1

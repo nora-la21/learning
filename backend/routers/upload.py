@@ -1,13 +1,14 @@
-from fastapi import APIRouter, UploadFile, File, Form, HTTPException
+from fastapi import APIRouter, Depends, UploadFile, File, Form, HTTPException
 from database import get_db
 from models import UploadPreview, WordPair, UploadConfirm, UploadConfirmResponse
+from routers.auth import current_user
 from services.parser import parse_uploaded_file
 
 router = APIRouter(prefix="/api", tags=["upload"])
 
 
 @router.post("/upload", response_model=UploadPreview)
-async def upload_preview(file: UploadFile = File(...)):
+async def upload_preview(file: UploadFile = File(...), user=Depends(current_user)):
     content = await file.read()
     filename = file.filename or "upload"
     pairs = parse_uploaded_file(filename, content)
@@ -25,26 +26,27 @@ async def upload_preview(file: UploadFile = File(...)):
 
 
 @router.post("/upload/confirm", response_model=UploadConfirmResponse)
-def upload_confirm(body: UploadConfirm):
+def upload_confirm(body: UploadConfirm, user=Depends(current_user)):
     if not body.words:
         raise HTTPException(status_code=422, detail="No words provided")
 
     conn = get_db()
     cursor = conn.execute(
-        "INSERT INTO word_lists (name, source_lang, target_lang, source_file) VALUES (?, ?, ?, ?)",
-        (body.list_name, body.source_lang, body.target_lang, body.source_file),
+        "INSERT INTO word_lists (name, source_lang, target_lang, source_file, user_id) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (body.list_name, body.source_lang, body.target_lang, body.source_file, user["id"]),
     )
     list_id = cursor.lastrowid
+    # Duplicates are skipped in SQL rather than by catching the constraint error:
+    # on Postgres a raised violation aborts the whole transaction, so the commit
+    # below would silently discard every row and the list itself.
     inserted = 0
     for w in body.words:
-        try:
-            conn.execute(
-                "INSERT INTO words (list_id, source_word, target_word) VALUES (?, ?, ?)",
-                (list_id, w.source_word.strip(), w.target_word.strip()),
-            )
-            inserted += 1
-        except Exception:
-            pass  # skip duplicates
+        cursor = conn.execute(
+            "INSERT OR IGNORE INTO words (list_id, source_word, target_word) VALUES (?, ?, ?)",
+            (list_id, w.source_word.strip(), w.target_word.strip()),
+        )
+        inserted += cursor.rowcount if cursor.rowcount and cursor.rowcount > 0 else 0
     conn.commit()
     conn.close()
     return UploadConfirmResponse(list_id=list_id, word_count=inserted)

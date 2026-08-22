@@ -1,20 +1,32 @@
 from datetime import datetime, timezone, timedelta
 from database import get_db
+from services.scoping import set_known
 
 
-def update_word_progress(word_id: int, correct: bool, time_ms: int, mode: str) -> None:
+# Typing the word from memory is the hardest mode, so mastering it is the
+# strongest single signal that a word is genuinely known.
+TYPING_MODE = "reverse_type_it"
+
+
+def update_word_progress(
+    word_id: int, correct: bool, time_ms: int, mode: str,
+    known_on_type_mastery: bool = False, *, user_id: int,
+) -> None:
     conn = get_db()
     row = conn.execute(
-        "SELECT * FROM word_progress WHERE word_id = ? AND mode = ?", (word_id, mode)
+        "SELECT * FROM word_progress WHERE word_id = ? AND mode = ? AND user_id = ?",
+        (word_id, mode, user_id)
     ).fetchone()
 
     if row is None:
         conn.execute(
-            "INSERT INTO word_progress (word_id, mode) VALUES (?, ?)", (word_id, mode)
+            "INSERT INTO word_progress (word_id, mode, user_id) VALUES (?, ?, ?)",
+            (word_id, mode, user_id)
         )
         conn.commit()
         row = conn.execute(
-            "SELECT * FROM word_progress WHERE word_id = ? AND mode = ?", (word_id, mode)
+            "SELECT * FROM word_progress WHERE word_id = ? AND mode = ? AND user_id = ?",
+            (word_id, mode, user_id)
         ).fetchone()
 
     reps = row["repetitions"]
@@ -41,29 +53,35 @@ def update_word_progress(word_id: int, correct: bool, time_ms: int, mode: str) -
             incorrect_count = incorrect_count + ?,
             last_seen_at = ?,
             mastered = ?
-        WHERE word_id = ? AND mode = ?
+        WHERE word_id = ? AND mode = ? AND user_id = ?
         """,
         (new_reps, new_ef, new_interval, next_review,
-         1 if correct else 0, 0 if correct else 1, now_str, mastered, word_id, mode),
+         1 if correct else 0, 0 if correct else 1, now_str, mastered, word_id, mode, user_id),
     )
     conn.execute(
-        "INSERT INTO answer_events (word_id, mode, correct, time_ms) VALUES (?, ?, ?, ?)",
-        (word_id, mode, 1 if correct else 0, time_ms),
+        "INSERT INTO answer_events (word_id, mode, correct, time_ms, user_id) VALUES (?, ?, ?, ?, ?)",
+        (word_id, mode, 1 if correct else 0, time_ms, user_id),
     )
+
+    if known_on_type_mastery and mastered and mode == TYPING_MODE:
+        set_known(conn, user_id, word_id, True)
+
     conn.commit()
     conn.close()
 
 
 def _response_quality(correct: bool, time_ms: int) -> int:
-    if not correct:
-        return 2
-    seconds = time_ms / 1000
-    if seconds > 5:
-        return 3
-    elif seconds > 2:
-        return 4
-    else:
-        return 5
+    """A correct answer is a correct answer, however long it took.
+
+    Grading on speed meant anything over five seconds scored 3: correct enough
+    to count, but not enough to grow the ease factor, so the interval crept up
+    too slowly to ever reach the 21 days mastery needs. Someone who thinks
+    carefully could answer correctly forever and never master a word.
+
+    Response time is still recorded on every answer event; it just no longer
+    decides the schedule.
+    """
+    return 5 if correct else 2
 
 
 def _sm2(reps: int, ef: float, interval: int, correct: bool, quality: int) -> tuple[int, float, int]:

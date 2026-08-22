@@ -1,12 +1,56 @@
-const API = 'http://localhost:8000/api'
+const DEFAULT_SERVER = 'https://learning-steel-ten.vercel.app'
+
+// The API requires an account. Rather than asking anyone to copy a token
+// around, this script picks it up from the app itself: content scripts can read
+// the storage of the page they run on, so simply visiting the app while signed
+// in hands the extension its credentials. Signing out clears them again.
+async function syncTokenFromApp() {
+  const server = (await getStorage('dvh_server')) || DEFAULT_SERVER
+  let origin
+  try {
+    origin = new URL(server).origin
+  } catch {
+    return
+  }
+  if (window.location.origin !== origin) return
+
+  const token = window.localStorage.getItem('auth-token') || ''
+  const stored = (await getStorage('dvh_token')) || ''
+  if (token !== stored) chrome.storage.local.set({ dvh_token: token })
+}
+
+// Runs on every page; only does anything on the app's own origin.
+syncTokenFromApp()
+// Signing in or out happens without a reload, so keep watching while we are here.
+if (typeof window !== 'undefined') {
+  setInterval(syncTokenFromApp, 3000)
+}
+
+function getToken() {
+  return new Promise(res => chrome.storage.local.get('dvh_token', v => res(v.dvh_token || '')))
+}
+
+async function authHeaders() {
+  const token = await getToken()
+  return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+function getAPI() {
+  return new Promise(res =>
+    chrome.storage.local.get('dvh_server', v =>
+      res(((v.dvh_server || DEFAULT_SERVER).replace(/\/$/, '')) + '/api')
+    )
+  )
+}
 
 let popup = null
 let lists = []
 
 // ── Fetch lists from the app ────────────────────────────────────────────────
 async function fetchLists() {
+  const API = await getAPI()
   try {
-    const r = await fetch(`${API}/lists?builtin=false`)
+    const r = await fetch(`${API}/lists?builtin=false`, { headers: await authHeaders() })
     lists = await r.json()
   } catch {
     lists = []
@@ -70,7 +114,7 @@ async function showPopup(word, x, y) {
           : lists.map(l => `<option value="${l.id}" ${l.id == savedListId ? 'selected' : ''}>${escHtml(l.name)}</option>`).join('')
         }
       </select>
-      <button class="dvh-btn-add" id="dvh-add" ${lists.length === 0 ? 'disabled' : ''}>+ Add</button>
+      <button class="dvh-btn-add" id="dvh-add" disabled>+ Add</button>
     </div>
     <div class="dvh-row">
       <button class="dvh-new-list" id="dvh-new-list">+ Create new list</button>
@@ -106,6 +150,9 @@ async function showPopup(word, x, y) {
       const wordEl = popup.querySelector('.dvh-word')
       if (wordEl) wordEl.textContent = sourceWord
     }
+    // Enable Add only after lookup completes so sourceWord is final
+    const addBtn = popup.querySelector('#dvh-add')
+    if (addBtn && lists.length > 0) addBtn.disabled = false
   })
 
   // Close button
@@ -126,12 +173,14 @@ async function showPopup(word, x, y) {
     btn.disabled = true
     btn.textContent = '…'
     try {
+      const API = await getAPI()
       const r = await fetch(`${API}/words/quick-add`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders()) },
         body: JSON.stringify({ list_id: listId, source_word: sourceWord, target_word: tgt }),
       })
       if (!r.ok) throw new Error('Failed')
+      if (!popup) return
       status.textContent = `✓ Added to list`
       btn.textContent = '✓'
       setTimeout(removePopup, 1200)
@@ -148,9 +197,11 @@ async function showPopup(word, x, y) {
     const name = prompt('New list name:')
     if (!name?.trim()) return
     try {
-      const r = await fetch(`${API}/lists?name=${encodeURIComponent(name.trim())}`, { method: 'POST' })
+      const API = await getAPI()
+      const r = await fetch(`${API}/lists?name=${encodeURIComponent(name.trim())}`, { method: 'POST', headers: await authHeaders() })
       const data = await r.json()
       lists.push({ id: data.id, name: name.trim() })
+      if (!popup) return
       const sel = popup.querySelector('#dvh-list-sel')
       sel.innerHTML = lists.map(l => `<option value="${l.id}">${escHtml(l.name)}</option>`).join('')
       sel.value = data.id

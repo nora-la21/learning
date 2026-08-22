@@ -23,14 +23,34 @@ let currentAudio: HTMLAudioElement | null = null
 let pendingVoicesHandler: (() => void) | null = null
 let consecutiveFailures = 0
 let bypassUntil = 0
+let speakGeneration = 0  // monotonic counter — increment on each speak() call to cancel stale async work
 
-// Preload cache: url → Audio element already fetching
-const preloadCache = new Map<string, HTMLAudioElement>()
+// blob URL cache: tts-url → fully-downloaded blob URL (audio data fully in memory)
+const blobCache = new Map<string, string>()
+// deduplicate concurrent fetches for the same URL
+const pendingFetches = new Map<string, Promise<string | null>>()
 
 function buildUrl(text: string, lang: string): string {
   const langPrefix = lang.toLowerCase().split('-')[0]
   const voice = localStorage.getItem(`preferred_voice_${langPrefix}`) ?? ''
   return `/api/tts?text=${encodeURIComponent(text)}&lang=${encodeURIComponent(lang)}${voice ? `&voice=${encodeURIComponent(voice)}` : ''}`
+}
+
+function getOrFetchBlob(url: string): Promise<string | null> {
+  const cached = blobCache.get(url)
+  if (cached) return Promise.resolve(cached)
+  if (pendingFetches.has(url)) return pendingFetches.get(url)!
+  const p = fetch(url)
+    .then(r => r.blob())
+    .then(blob => {
+      const blobUrl = URL.createObjectURL(blob)
+      blobCache.set(url, blobUrl)
+      return blobUrl
+    })
+    .catch(() => null)
+    .finally(() => pendingFetches.delete(url))
+  pendingFetches.set(url, p)
+  return p
 }
 
 function speakWithWebSpeech(text: string, lang: string, rate: number) {
@@ -43,7 +63,6 @@ function speakWithWebSpeech(text: string, lang: string, rate: number) {
     pendingVoicesHandler = null
   }
 
-  // Check before cancel — after cancel() speaking becomes false immediately
   const wasSpeaking = window.speechSynthesis.speaking
   window.speechSynthesis.cancel()
 
@@ -72,23 +91,34 @@ function speakWithWebSpeech(text: string, lang: string, rate: number) {
     pendingVoicesHandler = doSpeak
     window.speechSynthesis.addEventListener('voiceschanged', doSpeak, { once: true })
   } else if (wasSpeaking) {
-    // Give Safari time to fully cancel before speaking again — prevents first-syllable repeat
     setTimeout(doSpeak, 50)
   } else {
     doSpeak()
   }
 }
 
+function startAudio(audio: HTMLAudioElement, text: string, lang: string, rate: number) {
+  currentAudio = audio
+  audio.play().catch(() => {
+    if (currentAudio === audio) currentAudio = null
+    consecutiveFailures++
+    if (consecutiveFailures >= 3) {
+      bypassUntil = Date.now() + 30_000
+      consecutiveFailures = 0
+    }
+    speakWithWebSpeech(text, lang, rate)
+  })
+  audio.addEventListener('ended', () => {
+    if (currentAudio === audio) currentAudio = null
+    consecutiveFailures = 0
+  }, { once: true })
+}
+
 export function useSpeech() {
   const preload = useCallback((text: string, lang: string = 'nl') => {
     if (!text?.trim() || Date.now() < bypassUntil) return
     const url = buildUrl(text, lang)
-    if (preloadCache.has(url)) return
-    const audio = new Audio(url)
-    audio.preload = 'auto'
-    preloadCache.set(url, audio)
-    // Evict after 60s to avoid stale entries
-    setTimeout(() => preloadCache.delete(url), 60_000)
+    getOrFetchBlob(url)  // fire-and-forget; result stored in blobCache
   }, [])
 
   const speak = useCallback((text: string, lang: string = 'nl', rate = 0.85) => {
@@ -105,28 +135,28 @@ export function useSpeech() {
     }
 
     const url = buildUrl(text, lang)
+    const cachedBlob = blobCache.get(url)
 
-    // Use preloaded element if available, otherwise create fresh
-    const audio = preloadCache.get(url) ?? new Audio(url)
-    preloadCache.delete(url)
-    currentAudio = audio
+    if (cachedBlob) {
+      // Fully in memory — no buffering possible
+      startAudio(new Audio(cachedBlob), text, lang, rate)
+      return
+    }
 
-    audio.play().catch(() => {
-      if (currentAudio === audio) currentAudio = null
-      consecutiveFailures++
-      if (consecutiveFailures >= 3) {
-        bypassUntil = Date.now() + 30_000
-        consecutiveFailures = 0
+    // Fetch (or await an in-flight fetch), then play
+    const gen = ++speakGeneration
+    getOrFetchBlob(url).then(blobUrl => {
+      if (speakGeneration !== gen) return  // a newer speak() fired — discard this result
+      if (!blobUrl) {
+        speakWithWebSpeech(text, lang, rate)
+        return
       }
-      speakWithWebSpeech(text, lang, rate)
-    })
-    audio.addEventListener('ended', () => {
-      if (currentAudio === audio) currentAudio = null
-      consecutiveFailures = 0
+      startAudio(new Audio(blobUrl), text, lang, rate)
     })
   }, [])
 
   const cancel = useCallback(() => {
+    speakGeneration++  // cancel any pending async speak
     if (currentAudio) {
       currentAudio.pause()
       currentAudio = null

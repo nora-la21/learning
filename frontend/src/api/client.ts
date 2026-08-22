@@ -2,12 +2,24 @@ import type {
   WordList, Word, UploadPreview, UploadConfirmResponse,
   WordPair, GameStartResponse, GameQuestion, GameAnswerResponse,
   ProgressSummary, WordProgressDetail, HeatmapEntry, GameMode,
+  DueSummary, RecentWord, MasteredWords,
+  IrregularVerb, VerbSummary, VerbMode, VerbStartResponse, VerbQuestion,
+  VerbAnswerResponse,
 } from '../types'
+import { authHeaders, onUnauthorized } from './auth'
 
 const BASE = '/api'
 
 async function req<T>(path: string, options?: RequestInit): Promise<T> {
-  const res = await fetch(BASE + path, options)
+  const res = await fetch(BASE + path, {
+    ...options,
+    headers: { ...(options?.headers ?? {}), ...authHeaders() },
+  })
+  if (res.status === 401) {
+    // The token expired or was revoked; drop it and send them back to sign in.
+    onUnauthorized()
+    throw new Error('Sign in to continue')
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: res.statusText }))
     throw new Error(err.detail || res.statusText)
@@ -21,7 +33,8 @@ export const api = {
     const qs = builtin === true ? '?builtin=true' : builtin === false ? '?builtin=false' : ''
     return req<WordList[]>(`/lists${qs}`)
   },
-  getWords: (listId: number) => req<Word[]>(`/lists/${listId}/words`),
+  getWords: (listId: number, excludeMastered = false) =>
+    req<Word[]>(`/lists/${listId}/words${excludeMastered ? '?exclude_mastered=true' : ''}`),
   deleteList: (listId: number) => req<void>(`/lists/${listId}`, { method: 'DELETE' }),
   updateWord: (wordId: number, data: Partial<WordPair>) =>
     req<Word>(`/words/${wordId}`, {
@@ -55,18 +68,21 @@ export const api = {
       body: JSON.stringify({ list_name: listName, source_lang: sourceLang, target_lang: targetLang, words, source_file: sourceFile }),
     }),
 
-  startGame: (listId: number, mode: GameMode, sessionSize = 20, wordIds?: number[]): Promise<GameStartResponse> =>
+  startGame: (listId: number, mode: GameMode, sessionSize = 20, wordIds?: number[], skipMasteredModes = false, review = false): Promise<GameStartResponse> =>
     req<GameStartResponse>('/game/start', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ list_id: listId, mode, session_size: sessionSize, word_ids: wordIds ?? null }),
+      body: JSON.stringify({ list_id: listId, mode, session_size: sessionSize, word_ids: wordIds ?? null, skip_mastered_modes: skipMasteredModes, review }),
     }),
   nextQuestion: (sessionId: string) => req<GameQuestion>(`/game/next?session_id=${sessionId}`),
-  submitAnswer: (sessionId: string, wordId: number, chosen: string, timeMs: number): Promise<GameAnswerResponse> =>
+  submitAnswer: (sessionId: string, wordId: number, chosen: string, timeMs: number, knownOnTypeMastery = false): Promise<GameAnswerResponse> =>
     req<GameAnswerResponse>('/game/answer', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ session_id: sessionId, word_id: wordId, chosen, time_ms: timeMs }),
+      body: JSON.stringify({
+        session_id: sessionId, word_id: wordId, chosen, time_ms: timeMs,
+        known_on_type_mastery: knownOnTypeMastery,
+      }),
     }),
   skipWord: (sessionId: string, wordId: number) =>
     req<{ progress_index: number; total: number; mode_complete: boolean; new_mode: string | null }>
@@ -75,4 +91,28 @@ export const api = {
   getProgressSummary: (listId: number) => req<ProgressSummary>(`/progress/summary?list_id=${listId}`),
   getWordProgress: (listId: number) => req<WordProgressDetail[]>(`/progress/words?list_id=${listId}`),
   getHeatmap: () => req<HeatmapEntry[]>('/progress/heatmap'),
+  getDue: () => req<DueSummary>('/progress/due'),
+  getMasteredWords: () => req<MasteredWords>('/progress/mastered'),
+  resetAllProgress: () => req<void>('/progress/reset-all', { method: 'POST' }),
+  getRecentWords: (days = 7) => req<RecentWord[]>(`/words/recent?days=${days}`),
+
+  getVerbs: () => req<IrregularVerb[]>('/verbs'),
+  getVerbSummary: () => req<VerbSummary>('/verbs/summary'),
+  startVerbGame: (mode: VerbMode, sessionSize = 10) =>
+    req<VerbStartResponse>('/verbs/game/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode, session_size: sessionSize }),
+    }),
+  nextVerbQuestion: (sessionId: string) =>
+    req<VerbQuestion>(`/verbs/game/next?session_id=${sessionId}`),
+  answerVerb: (sessionId: string, verbId: number, mode: VerbMode, answer: string, timeMs: number) =>
+    req<VerbAnswerResponse>('/verbs/game/answer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId, verb_id: verbId, mode, answer, time_ms: timeMs,
+      }),
+    }),
+  resetVerbProgress: () => req<void>('/verbs/reset', { method: 'POST' }),
 }

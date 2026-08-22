@@ -3,10 +3,69 @@
 /* Use class-based dark mode so dark: variants reliably win over hover: variants */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Ledger theme tokens (default).
+   Plain @theme, not @theme inline: `inline` substitutes the literal colour into
+   every utility, so .bg-paper compiles to a hard-coded hex and redefining
+   --color-paper at runtime does nothing. Without it the utilities emit
+   var(--color-paper), which is what lets the theme toggle and dark mode work. */
+@theme {
+  --color-paper: #FBF9F5;
+  --color-surface: #ffffff;
+  --color-ink: #211E1A;
+  --color-accent: #B5583C;
+  --color-moss: #6E8A5E;
+  --color-border: #E7E1D6;
+  --color-muted: #6B6459;
+  --color-ghost: #8f8879;
+  --color-track: #EBE4D8;
+  /* Text and icons that sit ON a bg-ink surface. Plain white breaks in dark
+     mode, where --color-ink is itself near-white; this flips with the theme. */
+  --color-onink: #ffffff;
+}
+
 @layer base {
   :root {
     color-scheme: light dark;
   }
+
+  /* Ledger dark */
+  .dark {
+    --color-paper: #1a1917;
+    --color-surface: #242220;
+    --color-ink: #f0ece4;
+    --color-border: #3d3830;
+    --color-muted: #a09a90;
+    --color-ghost: #7a7368;
+    --color-track: #2e2b26;
+    --color-onink: #1a1917;
+  }
+
+  /* Classic light */
+  [data-theme="classic"] {
+    --color-paper: #f9fafb;
+    --color-surface: #ffffff;
+    --color-ink: #111827;
+    --color-accent: #7c3aed;
+    --color-moss: #22c55e;
+    --color-border: #e5e7eb;
+    --color-muted: #6b7280;
+    --color-ghost: #9ca3af;
+    --color-track: #f3f4f6;
+    --color-onink: #ffffff;
+  }
+
+  /* Classic dark */
+  .dark[data-theme="classic"] {
+    --color-paper: #111827;
+    --color-surface: #1f2937;
+    --color-ink: #ffffff;
+    --color-border: #374151;
+    --color-muted: #9ca3af;
+    --color-ghost: #6b7280;
+    --color-track: #1f2937;
+    --color-onink: #111827;
+  }
+
   body {
     margin: 0;
     font-family: system-ui, 'Segoe UI', Roboto, sans-serif;

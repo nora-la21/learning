@@ -35,6 +35,26 @@ class WordResponse(BaseModel):
     learned: bool = False
 
 
+class MasteredWord(BaseModel):
+    word_id: int
+    source_word: str
+    target_word: str
+    list_id: int
+    list_name: str
+    # True when it was mastered by ticking "I already know this" rather than by
+    # practising it, which is worth showing: the two mean different things.
+    marked_known: bool
+    mastered_modes: int
+    total_correct: int
+    total_incorrect: int
+    last_seen_at: Optional[str] = None
+
+
+class MasteredWords(BaseModel):
+    total: int
+    words: list[MasteredWord]
+
+
 class WordUpdate(BaseModel):
     source_word: Optional[str] = None
     target_word: Optional[str] = None
@@ -72,6 +92,9 @@ class GameStartRequest(BaseModel):
     mode: str
     session_size: int = 20
     word_ids: Optional[list[int]] = None
+    skip_mastered_modes: bool = False
+    # Review sessions supply word_ids sorted by how overdue each word is.
+    review: bool = False
 
 
 class GameStartResponse(BaseModel):
@@ -103,6 +126,8 @@ class GameAnswerRequest(BaseModel):
     word_id: int
     chosen: str
     time_ms: int
+    # When set, mastering the typing mode marks the whole word as known.
+    known_on_type_mastery: bool = False
 
 
 class GameAnswerResponse(BaseModel):
@@ -151,3 +176,25 @@ class WordProgressDetail(BaseModel):
 class HeatmapEntry(BaseModel):
     date: str
     count: int
+
+
+class DueListEntry(BaseModel):
+    list_id: int
+    name: str
+    count: int
+
+
+class DueSummary(BaseModel):
+    total: int
+    word_ids: list[int]
+    primary_list_id: Optional[int] = None
+    by_list: list[DueListEntry]
+
+
+class RecentWord(BaseModel):
+    id: int
+    source_word: str
+    target_word: str
+    list_id: int
+    list_name: str
+    created_at: str

@@ -1,14 +1,15 @@
 import { useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import GameShell from '../components/GameShell'
+import NavMenu from '../components/NavMenu'
 import type { GameMode } from '../types'
 
-const MODES: { id: GameMode; label: string; desc: string; icon: string; highlight?: boolean }[] = [
-  { id: 'all_in_one', label: 'All in One', desc: 'All 4 modes in sequence — the full training cycle', icon: '⚡', highlight: true },
-  { id: 'multiple_choice', label: 'Word → Translation', desc: 'See the Dutch word, pick the correct English translation', icon: '🃏' },
-  { id: 'reverse_mc', label: 'Translation → Word', desc: 'See the English translation, pick the correct Dutch word', icon: '🔄' },
-  { id: 'listening', label: 'Listening', desc: 'Hear the Dutch word, pick the correct English translation', icon: '👂' },
-  { id: 'reverse_type_it', label: 'Type It', desc: 'See the English word, type the Dutch translation', icon: '✍️' },
+const MODES: { id: GameMode; label: string; desc: string; chip: string; highlight?: boolean }[] = [
+  { id: 'all_in_one', label: 'All in One', desc: 'All 4 modes in sequence — the full training cycle', chip: '01–04', highlight: true },
+  { id: 'multiple_choice', label: 'Word → Translation', desc: 'See the Dutch word, pick the correct English translation', chip: '01' },
+  { id: 'reverse_mc', label: 'Translation → Word', desc: 'See the English translation, pick the correct Dutch word', chip: '02' },
+  { id: 'listening', label: 'Listening', desc: 'Hear the Dutch word, pick the correct English translation', chip: '03' },
+  { id: 'reverse_type_it', label: 'Type It', desc: 'See the English word, type the Dutch translation', chip: '04' },
 ]
 
 const SESSION_SIZES: (number | null)[] = [5, 10, 20, 50, null]
@@ -17,26 +18,34 @@ export default function LearnPage() {
   const { listId } = useParams<{ listId: string }>()
   const [selectedMode, setSelectedMode] = useState<GameMode | null>(null)
   const [sessionSize, setSessionSize] = useState<number | null>(10)
+  const [skipMasteredModes, setSkipMasteredModes] = useState(false)
+  const [knownOnType, setKnownOnType] = useState(
+    () => localStorage.getItem('known-on-type-mastery') === 'true'
+  )
   const navigate = useNavigate()
   const id = Number(listId)
 
-  // Parse optional ?words=1,2,3 param from URL (set by "Practice selected")
+  const params = new URLSearchParams(window.location.search)
   const wordIds = (() => {
-    const raw = new URLSearchParams(window.location.search).get('words')
+    const raw = params.get('words')
     if (!raw) return undefined
     const ids = raw.split(',').map(Number).filter(Boolean)
     return ids.length > 0 ? ids : undefined
   })()
+  // A review session keeps the server's most-overdue-first ordering.
+  const isReview = params.get('review') === '1'
 
   if (selectedMode) {
     return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+      <div className="min-h-screen bg-paper transition-colors">
         <div className="max-w-xl mx-auto px-4 py-10">
           <GameShell
             listId={id}
             mode={selectedMode}
             sessionSize={sessionSize}
             wordIds={wordIds}
+            skipMasteredModes={skipMasteredModes}
+            review={isReview}
             onBack={() => setSelectedMode(null)}
           />
         </div>
@@ -45,30 +54,34 @@ export default function LearnPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+    <div className="min-h-screen bg-paper transition-colors">
+      <NavMenu />
       <div className="max-w-xl mx-auto px-4 py-10">
         <button
           onClick={() => navigate('/')}
-          className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition text-sm mb-6 block"
+          className="text-ghost hover:text-ink transition text-sm mb-6 block"
         >← My Vocabulary</button>
 
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white mb-1">Choose a practice mode</h1>
-        <p className="text-gray-500 dark:text-gray-400 mb-5 text-sm">
-          Wrong answers repeat until you get them right ✓
-        </p>
+        <p className="text-[11px] uppercase tracking-[.15em] text-ghost font-medium mb-1">Session</p>
+        <h1 className="text-[30px] font-semibold text-ink mb-1">Choose a practice mode</h1>
+        <p className="text-muted mb-3 text-sm">Wrong answers repeat until you get them right ✓</p>
+        <Link
+          to={`/study/${listId}`}
+          className="inline-block text-sm text-accent hover:underline mb-5"
+        >Or just read the word list first →</Link>
 
         {/* Session size picker */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-4 mb-5 flex items-center gap-4">
-          <span className="text-sm font-medium text-gray-700 dark:text-gray-300 shrink-0">Words per session:</span>
+        <div className="bg-surface rounded-2xl border border-border p-4 mb-3">
+          <p className="text-[11px] uppercase tracking-[.14em] text-ghost font-medium mb-3">Words per session</p>
           <div className="flex gap-2 flex-wrap">
             {SESSION_SIZES.map(size => (
               <button
                 key={size ?? 'all'}
                 onClick={() => setSessionSize(size)}
-                className={`px-3 py-1.5 rounded-lg text-sm font-semibold transition-colors ${
+                className={`px-3 py-1.5 rounded-[9px] text-sm font-semibold transition-colors border ${
                   sessionSize === size
-                    ? 'bg-violet-600 text-white'
-                    : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'
+                    ? 'bg-ink text-onink border-ink'
+                    : 'bg-surface border-border text-muted hover:border-muted'
                 }`}
               >
                 {size ?? 'All'}
@@ -77,27 +90,60 @@ export default function LearnPage() {
           </div>
         </div>
 
+        {/* Session options */}
+        <div className="bg-surface rounded-2xl border border-border mb-5 divide-y divide-border">
+          <label className="flex items-center gap-3 p-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={skipMasteredModes}
+              onChange={e => setSkipMasteredModes(e.target.checked)}
+              className="w-4 h-4 cursor-pointer shrink-0"
+            />
+            <div>
+              <span className="text-sm font-medium text-ink">Skip mastered modes</span>
+              <p className="text-xs text-ghost mt-0.5">In All-in-One, skip modes where a word is already mastered</p>
+            </div>
+          </label>
+          <label className="flex items-center gap-3 p-4 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={knownOnType}
+              onChange={e => {
+                setKnownOnType(e.target.checked)
+                localStorage.setItem('known-on-type-mastery', String(e.target.checked))
+              }}
+              className="w-4 h-4 cursor-pointer shrink-0"
+            />
+            <div>
+              <span className="text-sm font-medium text-ink">Count as known once Type It is mastered</span>
+              <p className="text-xs text-ghost mt-0.5">Typing a word from memory enough times marks it known, without finishing the other modes</p>
+            </div>
+          </label>
+        </div>
+
         <div className="space-y-3">
           {MODES.map(m => (
             <button
               key={m.id}
               onClick={() => setSelectedMode(m.id)}
-              className={`w-full rounded-2xl border p-5 flex items-center gap-4 hover:shadow-md transition-all text-left group ${
+              className={`w-full rounded-[14px] border p-4 flex items-center gap-4 hover:shadow-md transition-all text-left group ${
                 m.highlight
-                  ? 'bg-violet-600 border-violet-600 text-white hover:bg-violet-700'
-                  : 'bg-white dark:bg-gray-800 border-gray-200 dark:border-gray-700 hover:border-violet-400'
+                  ? 'bg-ink border-ink'
+                  : 'bg-surface border-border hover:border-muted'
               }`}
             >
-              <span className="text-3xl">{m.icon}</span>
-              <div>
-                <div className={`font-semibold ${m.highlight ? 'text-white' : 'text-gray-900 dark:text-white group-hover:text-violet-600 dark:group-hover:text-violet-400 transition-colors'}`}>
+              <span className="text-xs font-mono font-semibold px-1.5 py-0.5 rounded border shrink-0 border-accent text-accent">
+                {m.chip}
+              </span>
+              <div className="flex-1 min-w-0">
+                <div className={`font-semibold ${m.highlight ? 'text-onink' : 'text-ink'}`}>
                   {m.label}
                 </div>
-                <div className={`text-sm ${m.highlight ? 'text-violet-200' : 'text-gray-500 dark:text-gray-400'}`}>
+                <div className={`text-sm ${m.highlight ? 'text-onink/70' : 'text-muted'}`}>
                   {m.desc}
                 </div>
               </div>
-              <span className={`ml-auto transition-colors ${m.highlight ? 'text-violet-300' : 'text-gray-300 dark:text-gray-600 group-hover:text-violet-400'}`}>→</span>
+              <span className={`transition-colors ${m.highlight ? 'text-onink/60' : 'text-ghost group-hover:text-accent'}`}>→</span>
             </button>
           ))}
         </div>

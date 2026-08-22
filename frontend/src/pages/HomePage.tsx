@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
-import type { Word, WordList } from '../types'
+import type { DueSummary, RecentWord, Word, WordList } from '../types'
 import UploadZone from '../components/UploadZone'
+import NavMenu from '../components/NavMenu'
 import { useSpeech } from '../hooks/useSpeech'
 
 const FLAG: Record<string, string> = {
@@ -11,8 +12,8 @@ const FLAG: Record<string, string> = {
 }
 
 const LEVEL_LABELS: Record<string, string> = {
-  'TaalComplete A1': '📚 TaalComplete A1',
-  'TaalComplete A2': '📚 TaalComplete A2',
+  'TaalComplete A1': 'TaalComplete A1',
+  'TaalComplete A2': 'TaalComplete A2',
   A1: 'A1 — Beginner',
   A2: 'A2 — Elementary',
   B1: 'B1 — Intermediate',
@@ -56,17 +57,23 @@ export default function HomePage() {
   const [myLists, setMyLists] = useState<WordList[]>([])
   const [showUpload, setShowUpload] = useState(false)
   const [loading, setLoading] = useState(true)
+  const [due, setDue] = useState<DueSummary | null>(null)
+  const [recent, setRecent] = useState<RecentWord[]>([])
   const navigate = useNavigate()
 
   const load = async () => {
     setLoading(true)
     try {
-      const [b, m] = await Promise.all([
+      const [b, m, d, r] = await Promise.all([
         api.getLists(true),
         api.getLists(false),
+        api.getDue().catch(() => null),
+        api.getRecentWords().catch(() => []),
       ])
       setBuiltinLists(b)
       setMyLists(m)
+      setDue(d)
+      setRecent(r)
     } finally {
       setLoading(false)
     }
@@ -86,51 +93,82 @@ export default function HomePage() {
     navigate(`/learn/${listId}`)
   }
 
+
   const lists = tab === 'builtin' ? builtinLists : myLists
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-900 transition-colors">
+    <div className="min-h-screen bg-paper transition-colors">
+      <NavMenu />
       <div className="max-w-3xl mx-auto px-4 py-10">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-gray-900 dark:text-white">My Vocabulary</h1>
-            <p className="text-gray-500 dark:text-gray-400 mt-1">Learn Dutch with your own words</p>
+            <p className="text-[11px] uppercase tracking-[.15em] text-accent font-medium mb-1">Nederlands · vocabulary</p>
+            <h1 className="text-3xl font-bold text-ink">My Vocabulary</h1>
           </div>
           {tab === 'my' && (
             <button
               onClick={() => setShowUpload(v => !v)}
-              className="px-5 py-2.5 bg-violet-600 text-white rounded-xl font-semibold hover:bg-violet-700 transition shadow-sm"
+              className="px-4 py-2 bg-ink text-onink rounded-[9px] text-sm font-medium hover:opacity-80 transition"
             >
               {showUpload ? '✕ Close' : '+ Upload words'}
             </button>
           )}
         </div>
 
+        {/* Due for review — the spaced-repetition schedule's daily prompt */}
+        {due && due.total > 0 && (
+          <div className="bg-ink rounded-2xl p-5 mb-4 flex items-center gap-4">
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] uppercase tracking-[.15em] text-onink/50 font-medium mb-1">Due for review</p>
+              <p className="text-onink text-[22px] font-semibold leading-tight">
+                {due.total} {due.total === 1 ? 'word' : 'words'} ready
+              </p>
+              <p className="text-onink/60 text-xs mt-1 truncate">
+                {due.by_list.slice(0, 2).map(l => `${l.name} (${l.count})`).join(' · ')}
+                {due.by_list.length > 2 && ` · +${due.by_list.length - 2} more`}
+              </p>
+            </div>
+            <button
+              onClick={() => navigate(`/learn/${due.primary_list_id}?words=${due.word_ids.join(',')}&review=1`)}
+              className="px-5 py-2.5 bg-onink text-ink rounded-[9px] text-sm font-semibold hover:opacity-90 transition shrink-0"
+            >Review now →</button>
+          </div>
+        )}
+
+        {/* Recently saved — mostly words captured by the browser extension */}
+        {recent.length > 0 && (
+          <RecentlySaved
+            words={recent}
+            onPractice={ids => navigate(`/learn/${recent[0].list_id}?words=${ids.join(',')}`)}
+            onDeleted={id => setRecent(ws => ws.filter(w => w.id !== id))}
+          />
+        )}
+
         {/* Voice picker */}
         <VoicePicker />
 
         {/* Tabs */}
-        <div className="flex gap-1 bg-gray-100 dark:bg-gray-800 rounded-xl p-1 mb-6">
+        <div className="flex border-b border-border mb-6">
           <button
             onClick={() => setTab('builtin')}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-4 py-2.5 text-sm font-medium -mb-px transition-colors ${
               tab === 'builtin'
-                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                ? 'border-b-2 border-ink text-ink'
+                : 'text-muted hover:text-ink'
             }`}
           >
-            📚 Built-in Lists
+            Built-in Lists
           </button>
           <button
             onClick={() => setTab('my')}
-            className={`flex-1 py-2 rounded-lg text-sm font-medium transition-colors ${
+            className={`px-4 py-2.5 text-sm font-medium -mb-px transition-colors ${
               tab === 'my'
-                ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
-                : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-300'
+                ? 'border-b-2 border-ink text-ink'
+                : 'text-muted hover:text-ink'
             }`}
           >
-            📂 My Lists {myLists.length > 0 && `(${myLists.length})`}
+            My Lists {myLists.length > 0 && `(${myLists.length})`}
           </button>
         </div>
 
@@ -142,35 +180,37 @@ export default function HomePage() {
         )}
 
         {loading ? (
-          <div className="text-center py-20 text-gray-400">Loading…</div>
+          <div className="text-center py-20 text-ghost">Loading…</div>
         ) : lists.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
+          <div className="text-center py-20 text-ghost">
             <div className="text-5xl mb-4">{tab === 'my' ? '📂' : '📚'}</div>
             {tab === 'my' ? (
               <>
-                <p className="font-medium text-gray-600 dark:text-gray-300">No word lists yet</p>
+                <p className="font-medium text-muted">No word lists yet</p>
                 <p className="text-sm mt-1">Click "+ Upload words" to add your own vocabulary</p>
-                <p className="text-xs mt-2 text-gray-400">Supports CSV, TXT, PDF, and Word (.docx) files</p>
+                <p className="text-xs mt-2 text-ghost">Supports CSV, TXT, PDF, and Word (.docx) files</p>
               </>
             ) : (
-              <p className="font-medium text-gray-600 dark:text-gray-300">No built-in lists found</p>
+              <p className="font-medium text-muted">No built-in lists found</p>
             )}
           </div>
         ) : tab === 'builtin' ? (
           <div className="space-y-3">
-            {groupByLevel(lists).map(({ level, lists: group }, i) => (
+            {groupByLevel(lists).map(({ level, lists: group }) => (
               <LevelGroup
                 key={level}
                 level={level}
                 lists={group}
-                defaultOpen={i === 0}
-                onPractice={id => navigate(`/learn/${id}`)}
-                onPracticeSelected={(id, wordIds) => navigate(`/learn/${id}?words=${wordIds.join(',')}`)}
-                onStats={id => navigate(`/progress/${id}`)}
-                onPracticeSets={async listIds => {
-                  const wordArrays = await Promise.all(listIds.map(id => api.getWords(id)))
-                  const wordIds = wordArrays.flat().map(w => w.id)
-                  navigate(`/learn/${listIds[0]}?words=${wordIds.join(',')}`)
+                defaultOpen={false}
+                onPractice={id => { navigate(`/learn/${id}`) }}
+                onPracticeSelected={(id, wordIds) => { navigate(`/learn/${id}?words=${wordIds.join(',')}`) }}
+                onStats={id => { navigate(`/progress/${id}`) }}
+                onPracticeSets={(listIds, excludeMastered) => {
+                  void (async () => {
+                    const wordArrays = await Promise.all(listIds.map(id => api.getWords(id, excludeMastered)))
+                    const wordIds = wordArrays.flat().map(w => w.id)
+                    navigate(`/learn/${listIds[0]}?words=${wordIds.join(',')}`)
+                  })()
                 }}
               />
             ))}
@@ -182,9 +222,9 @@ export default function HomePage() {
                 key={list.id}
                 list={list}
                 flag={FLAG[list.source_lang] ?? '📖'}
-                onPractice={() => navigate(`/learn/${list.id}`)}
-                onPracticeSelected={(_, wordIds) => navigate(`/learn/${list.id}?words=${wordIds.join(',')}`)}
-                onStats={() => navigate(`/progress/${list.id}`)}
+                onPractice={() => { navigate(`/learn/${list.id}`) }}
+                onPracticeSelected={(wordIds: number[]) => { navigate(`/learn/${list.id}?words=${wordIds.join(',')}`) }}
+                onStats={() => { navigate(`/progress/${list.id}`) }}
                 onDelete={() => deleteList(list.id)}
               />
             ))}
@@ -192,31 +232,6 @@ export default function HomePage() {
         )}
       </div>
     </div>
-  )
-}
-
-function MiniDonut({ mastered, seen, total }: { mastered: number; seen: number; total: number }) {
-  if (total === 0) return null
-  const r = 9
-  const c = 2 * Math.PI * r
-  const masteredFrac = Math.min(mastered / total, 1)
-  const inProgressFrac = Math.min((seen - mastered) / total, 1 - masteredFrac)
-  const masteredArc = masteredFrac * c
-  const inProgressArc = inProgressFrac * c
-  return (
-    <svg width="24" height="24" viewBox="-12 -12 24 24" style={{ transform: 'rotate(-90deg)' }}>
-      <circle r={r} fill="none" stroke="#e5e7eb" strokeWidth="3.5" className="dark:stroke-gray-700" />
-      {inProgressArc > 0 && (
-        <circle r={r} fill="none" stroke="#8b5cf6" strokeWidth="3.5"
-          strokeDasharray={`${inProgressArc} ${c - inProgressArc}`}
-          strokeDashoffset={c - masteredArc} />
-      )}
-      {masteredArc > 0 && (
-        <circle r={r} fill="none" stroke="#22c55e" strokeWidth="3.5"
-          strokeDasharray={`${masteredArc} ${c - masteredArc}`}
-          strokeDashoffset={0} />
-      )}
-    </svg>
   )
 }
 
@@ -228,11 +243,97 @@ const NL_VOICES = [
   { name: 'nl-BE-ArnaudNeural',  label: 'Arnaud (BE)', icon: '♂' },
 ]
 
+function RecentlySaved({
+  words, onPractice, onDeleted,
+}: {
+  words: RecentWord[]
+  onPractice: (ids: number[]) => void
+  onDeleted: (id: number) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const [busy, setBusy] = useState<number | null>(null)
+  const shown = open ? words : words.slice(0, 6)
+
+  const remove = async (w: RecentWord) => {
+    setBusy(w.id)
+    try {
+      await api.deleteWord(w.id)
+      onDeleted(w.id)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  const markKnown = async (w: RecentWord) => {
+    setBusy(w.id)
+    try {
+      await api.setWordLearned(w.id, true)
+      onDeleted(w.id)
+    } finally {
+      setBusy(null)
+    }
+  }
+
+  return (
+    <div className="bg-surface rounded-2xl border border-border p-5 mb-4">
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <p className="text-[11px] uppercase tracking-[.15em] text-ghost font-medium">Saved this week</p>
+          <p className="text-ink text-[15px] font-semibold mt-0.5">
+            {words.length} {words.length === 1 ? 'word' : 'words'} captured
+          </p>
+        </div>
+        {words.length >= 4 && (
+          <button
+            onClick={() => onPractice(words.map(w => w.id))}
+            className="px-4 py-2 bg-ink text-onink rounded-[9px] text-sm font-medium hover:opacity-80 transition shrink-0"
+          >Practice these</button>
+        )}
+      </div>
+
+      <div className="flex flex-wrap gap-1.5">
+        {shown.map(w => (
+          <span
+            key={w.id}
+            className={`group inline-flex items-center gap-1.5 pl-2.5 pr-1 py-1 rounded-lg border border-border text-sm transition-opacity ${
+              busy === w.id ? 'opacity-40' : ''
+            }`}
+            title={`${w.source_word} → ${w.target_word}  ·  ${w.list_name}`}
+          >
+            <span className="text-ink font-medium">{w.source_word}</span>
+            <span className="text-ghost text-xs">{w.target_word}</span>
+            <button
+              onClick={() => markKnown(w)}
+              disabled={busy === w.id}
+              className="text-ghost hover:text-moss px-1 leading-none"
+              title="Already know this — skip it in practice"
+            >✓</button>
+            <button
+              onClick={() => remove(w)}
+              disabled={busy === w.id}
+              className="text-ghost hover:text-red-500 px-1 leading-none"
+              title="Delete"
+            >×</button>
+          </span>
+        ))}
+      </div>
+
+      {words.length > 6 && (
+        <button
+          onClick={() => setOpen(v => !v)}
+          className="text-xs text-accent hover:underline mt-3"
+        >{open ? 'Show less' : `Show all ${words.length}`}</button>
+      )}
+      {words.length < 4 && (
+        <p className="text-xs text-ghost mt-3">Save at least 4 words to practise them together.</p>
+      )}
+    </div>
+  )
+}
 
 function VoicePicker() {
   const [selected, setSelected] = useState(() => {
     const stored = localStorage.getItem('preferred_voice_nl') ?? ''
-    // Clear stale espeak voice names
     if (stored && !stored.includes('Neural')) { localStorage.removeItem('preferred_voice_nl'); return '' }
     return stored
   })
@@ -241,23 +342,27 @@ function VoicePicker() {
   const pick = (name: string) => { setSelected(name); localStorage.setItem('preferred_voice_nl', name) }
 
   return (
-    <div className="mb-6 p-4 bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm">
+    <div className="mb-6 p-4 bg-surface rounded-2xl border border-border shadow-sm">
       <div className="flex items-center justify-between mb-3">
-        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">🇳🇱 Dutch voice</p>
-        <button onClick={() => speak('Goedemorgen, hoe gaat het met je?', 'nl')}
-          className="text-xs px-3 py-1 rounded-lg bg-violet-100 dark:bg-violet-900 text-violet-700 dark:text-violet-300 hover:bg-violet-200 dark:hover:bg-violet-800 transition font-medium">
+        <p className="text-[11px] uppercase tracking-[.14em] text-ghost font-medium">Dutch voice</p>
+        <button
+          onClick={() => speak('Goedemorgen, hoe gaat het met je?', 'nl')}
+          className="text-xs text-accent hover:underline transition"
+        >
           Preview
         </button>
       </div>
       <div className="flex flex-wrap gap-2">
         {NL_VOICES.map(v => (
           <button key={v.name} onClick={() => pick(v.name)} title={v.name}
-            className={`px-3 py-1.5 text-sm rounded-lg border transition flex items-center gap-1.5 ${
+            className={`px-3 py-1.5 text-sm rounded-lg border transition inline-flex items-baseline gap-1.5 ${
               selected === v.name
-                ? 'border-violet-500 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300 font-medium'
-                : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-violet-300 hover:bg-violet-50 dark:hover:bg-violet-950'
+                ? 'border-accent text-accent font-medium'
+                : 'border-border text-muted hover:border-accent hover:text-accent'
             }`}>
-            <span className="text-base leading-none">{v.icon}</span>{v.label}
+            {/* Same font metrics as the label, so the glyph sits on the same
+                baseline instead of drifting below it. */}
+            <span aria-hidden="true">{v.icon}</span>{v.label}
           </button>
         ))}
       </div>
@@ -274,13 +379,13 @@ function LevelGroup({
   onPractice: (id: number) => void
   onPracticeSelected: (id: number, wordIds: number[]) => void
   onStats: (id: number) => void
-  onPracticeSets: (listIds: number[]) => void
+  onPracticeSets: (listIds: number[], excludeMastered: boolean) => void
 }) {
   const [open, setOpen] = useState(defaultOpen)
   const [selectedSets, setSelectedSets] = useState<Set<number>>(new Set())
+  const [excludeMastered, setExcludeMastered] = useState(false)
   const totalWords = lists.reduce((s, l) => s + l.word_count, 0)
   const label = LEVEL_LABELS[level] ?? level
-  const flag = FLAG[lists[0]?.source_lang] ?? '📖'
 
   const toggleSet = (id: number) => {
     setSelectedSets(prev => {
@@ -291,25 +396,35 @@ function LevelGroup({
   }
 
   return (
-    <div className="rounded-2xl border border-gray-200 dark:border-gray-700 overflow-hidden shadow-sm">
-      <div className="flex items-center gap-3 px-5 py-4 bg-white dark:bg-gray-800">
+    <div className="rounded-[18px] border border-border overflow-hidden" style={{ boxShadow: '0 18px 44px -30px rgba(60,45,30,.2)' }}>
+      <div className="flex items-center gap-3 px-5 py-4 bg-surface">
         <button onClick={() => setOpen(v => !v)} className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
-          <span className="text-2xl">{flag}</span>
           <div className="flex-1 min-w-0">
-            <span className="font-semibold text-gray-900 dark:text-white">{label}</span>
-            <span className="ml-2 text-sm text-gray-400">{lists.length} topics · {totalWords} words</span>
+            <span className="font-semibold text-[18px] text-ink">{label}</span>
+            <span className="ml-2 text-sm text-ghost">{lists.length} topics · {totalWords} words</span>
           </div>
-          <span className={`text-gray-400 transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▾</span>
+          <span className={`text-accent transition-transform duration-200 ${open ? 'rotate-180' : ''}`}>▾</span>
         </button>
         {selectedSets.size > 0 && (
+          <label className="flex items-center gap-1.5 shrink-0 cursor-pointer select-none text-xs text-muted">
+            <input
+              type="checkbox"
+              checked={excludeMastered}
+              onChange={e => setExcludeMastered(e.target.checked)}
+              className="w-3.5 h-3.5 cursor-pointer"
+            />
+            Skip mastered
+          </label>
+        )}
+        {selectedSets.size > 0 && (
           <button
-            onClick={() => { onPracticeSets(Array.from(selectedSets)); setSelectedSets(new Set()) }}
-            className="shrink-0 text-xs px-3 py-1.5 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition font-medium"
+            onClick={() => { onPracticeSets(Array.from(selectedSets), excludeMastered); setSelectedSets(new Set()) }}
+            className="shrink-0 text-xs px-3 py-1.5 rounded-[9px] bg-ink text-onink hover:opacity-80 transition font-medium"
           >▶ Practice {selectedSets.size} set{selectedSets.size > 1 ? 's' : ''}</button>
         )}
       </div>
       {open && (
-        <div className="border-t border-gray-100 dark:border-gray-700 divide-y divide-gray-100 dark:divide-gray-700 bg-gray-50 dark:bg-gray-900">
+        <div className="border-t border-border divide-y divide-border bg-paper">
           {lists.map(list => (
             <div key={list.id} className="flex items-center">
               <div className="pl-4 pr-1 py-3">
@@ -317,13 +432,13 @@ function LevelGroup({
                   type="checkbox"
                   checked={selectedSets.has(list.id)}
                   onChange={() => toggleSet(list.id)}
-                  className="w-4 h-4 accent-violet-600 cursor-pointer"
+                  className="w-4 h-4 cursor-pointer"
                 />
               </div>
               <div className="flex-1 min-w-0">
                 <ListCard
                   list={list}
-                  flag={flag}
+                  flag={FLAG[list.source_lang] ?? '📖'}
                   compact
                   onPractice={() => onPractice(list.id)}
                   onPracticeSelected={wordIds => onPracticeSelected(list.id, wordIds)}
@@ -396,7 +511,6 @@ function ListCard({
   const resetSelected = async () => {
     if (selected.size === 0) return
     await api.resetProgress(Array.from(selected))
-    // Refresh word learned status
     const fresh = await api.getWords(list.id)
     setWords(fresh)
     setSelected(new Set())
@@ -410,49 +524,63 @@ function ListCard({
     : list.name
 
   const done = list.word_count > 0 && list.mastered_count >= list.word_count
+  const masteredPct = list.word_count > 0 ? (list.mastered_count / list.word_count) : 0
 
   return (
     <div className={compact
-      ? 'bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors'
-      : 'bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 shadow-sm hover:shadow-md transition-shadow'
+      ? 'bg-surface hover:bg-paper transition-colors'
+      : 'bg-surface rounded-[18px] border border-border shadow-sm hover:shadow-md transition-shadow'
     }>
       <div className={`flex items-center gap-4 ${compact ? 'px-5 py-3' : 'p-5'}`}>
         {!compact && <div className="text-3xl">{flag}</div>}
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             {done && <span className="text-lg shrink-0" title="All words mastered!">🏅</span>}
-            <h3 className="font-semibold text-gray-900 dark:text-white truncate">{topic}</h3>
+            <h3 className="font-semibold text-ink truncate">{topic}</h3>
           </div>
-          <p className="text-sm text-gray-500 dark:text-gray-400">
+          <p className="text-sm text-muted">
             {list.word_count} words
             {!compact && ` · ${list.source_lang.toUpperCase()} → ${list.target_lang.toUpperCase()}`}
           </p>
         </div>
-        <div className="flex gap-2 shrink-0 items-center">
+        <div className="flex gap-3 shrink-0 items-center">
+          {/* Progress bar → clicks to stats */}
+          {list.word_count > 0 && (
+            <button
+              onClick={onStats}
+              title={`Mastered: ${list.mastered_count} · In progress: ${list.seen_count - list.mastered_count} · Not started: ${list.word_count - list.seen_count}`}
+              className="flex flex-col items-end gap-0.5 group"
+            >
+              <div className="w-[90px] h-[5px] bg-track rounded-full overflow-hidden">
+                <div
+                  className="h-full rounded-full transition-all group-hover:opacity-75"
+                  style={{
+                    width: `${Math.round(masteredPct * 100)}%`,
+                    backgroundColor: masteredPct > 0.7 ? 'var(--color-moss)' : 'var(--color-accent)',
+                  }}
+                />
+              </div>
+              <p className="text-[10px] text-ghost group-hover:text-muted transition-colors">{list.mastered_count} mastered</p>
+            </button>
+          )}
+          {/* "Select" opens the checkbox view, whose point is practising a
+              subset; reading the list itself now has its own page. */}
           <button
             onClick={toggleBrowse}
-            className={`px-3 py-1.5 text-sm rounded-lg border transition ${
-              expanded
-                ? 'border-violet-300 dark:border-violet-600 bg-violet-50 dark:bg-violet-950 text-violet-700 dark:text-violet-300'
-                : 'border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-            }`}
-          >{expanded ? 'Hide' : 'Browse'}</button>
-          <button
-            onClick={onStats}
-            title={`Mastered: ${list.mastered_count} · In progress: ${list.seen_count - list.mastered_count} · Not started: ${list.word_count - list.seen_count}`}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
-          >
-            <MiniDonut mastered={list.mastered_count} seen={list.seen_count} total={list.word_count} />
-            Stats
-          </button>
+            className="text-xs text-muted hover:text-ink transition-colors"
+          >{expanded ? 'Hide' : 'Select'}</button>
+          <Link
+            to={`/study/${list.id}`}
+            className="px-3.5 py-1.5 text-sm rounded-[9px] border border-border text-muted font-medium hover:text-ink hover:border-ink transition"
+          >Study</Link>
           <button
             onClick={onPractice}
-            className="px-4 py-1.5 text-sm rounded-lg bg-violet-600 text-white font-medium hover:bg-violet-700 transition"
+            className="px-3.5 py-1.5 text-sm rounded-[9px] bg-ink text-onink font-medium hover:opacity-80 transition"
           >Practice</button>
           {onDelete && (
             <button
               onClick={onDelete}
-              className="px-2 py-1.5 text-sm rounded-lg text-red-400 hover:bg-red-50 dark:hover:bg-red-950 transition"
+              className="text-ghost hover:text-red-500 transition text-sm"
               title="Delete list"
             >🗑</button>
           )}
@@ -460,20 +588,19 @@ function ListCard({
       </div>
 
       {expanded && (
-        <div className="border-t border-gray-100 dark:border-gray-700">
+        <div className="border-t border-border">
           {loadingWords ? (
-            <p className="text-sm text-gray-400 text-center py-4">Loading…</p>
+            <p className="text-sm text-ghost text-center py-4">Loading…</p>
           ) : words && words.length > 0 ? (
             <>
-              {/* Toolbar */}
-              <div className="flex items-center justify-between px-5 py-2 bg-gray-50 dark:bg-gray-700 border-b border-gray-100 dark:border-gray-700">
-                <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-gray-500 dark:text-gray-400">
+              <div className="flex items-center justify-between px-5 py-2 bg-paper border-b border-border">
+                <label className="flex items-center gap-2 cursor-pointer select-none text-sm text-muted">
                   <input
                     type="checkbox"
                     checked={allSelected}
                     ref={el => { if (el) el.indeterminate = someSelected }}
                     onChange={toggleSelectAll}
-                    className="w-4 h-4 accent-violet-600 cursor-pointer"
+                    className="w-4 h-4 cursor-pointer"
                   />
                   {selected.size > 0 ? `${selected.size} selected` : 'Select all'}
                 </label>
@@ -481,54 +608,53 @@ function ListCard({
                   <div className="flex gap-2">
                     <button
                       onClick={() => onPracticeSelected(Array.from(selected))}
-                      className="text-xs px-3 py-1 rounded-lg bg-violet-600 text-white hover:bg-violet-700 transition font-medium"
+                      className="text-xs px-3 py-1 rounded-[9px] bg-ink text-onink hover:opacity-80 transition font-medium"
                     >
                       ▶ Practice ({selected.size})
                     </button>
                     <button
                       onClick={resetSelected}
-                      className="text-xs px-3 py-1 rounded-lg bg-amber-100 dark:bg-amber-900 text-amber-700 dark:text-amber-300 hover:bg-amber-200 dark:hover:bg-amber-800 transition font-medium"
+                      className="text-xs px-3 py-1 rounded-[9px] bg-amber-100 text-amber-700 hover:bg-amber-200 transition font-medium"
                     >
                       Reset progress
                     </button>
                   </div>
                 )}
               </div>
-              {/* Word table */}
               <div className="max-h-80 overflow-y-auto px-5 py-2">
                 <table className="w-full text-sm">
-                  <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                  <tbody className="divide-y divide-border">
                     {words.map(w => (
                       <tr
                         key={w.id}
-                        className={`group hover:bg-gray-50 dark:hover:bg-gray-700 ${w.learned ? 'opacity-50' : ''}`}
+                        className={`group hover:bg-paper ${w.learned ? 'opacity-50' : ''}`}
                       >
                         <td className="py-1.5 pr-2 w-6">
                           <input
                             type="checkbox"
                             checked={selected.has(w.id)}
                             onChange={() => toggleSelect(w.id)}
-                            className="w-4 h-4 accent-violet-600 cursor-pointer"
+                            className="w-4 h-4 cursor-pointer"
                           />
                         </td>
-                        <td className="py-1.5 pr-3 text-gray-800 dark:text-gray-200 font-medium">
+                        <td className="py-1.5 pr-3 text-ink font-medium">
                           {w.source_word}
                         </td>
-                        <td className="py-1.5 pr-2 text-gray-500 dark:text-gray-400 flex-1">
+                        <td className="py-1.5 pr-2 text-muted flex-1">
                           {w.target_word}
                         </td>
                         <td className="py-1.5 text-right whitespace-nowrap">
                           <button
                             onClick={() => speak(w.source_word, list.source_lang)}
-                            className="text-gray-400 hover:text-violet-500 transition px-1 text-base"
+                            className="text-ghost hover:text-accent transition px-1 text-base"
                             title="Listen"
                           >🔊</button>
                           <button
                             onClick={() => toggleLearned(w.id, w.learned)}
                             className={`transition px-1 text-base ${
                               w.learned
-                                ? 'text-green-500 hover:text-gray-400'
-                                : 'text-gray-300 dark:text-gray-600 hover:text-green-500'
+                                ? 'text-moss hover:text-ghost'
+                                : 'text-ghost hover:text-moss'
                             }`}
                             title={w.learned ? 'Mark as not learned' : 'Mark as learned (skip in game)'}
                           >✓</button>
@@ -545,7 +671,7 @@ function ListCard({
               </div>
             </>
           ) : (
-            <p className="text-sm text-gray-400 text-center py-4">No words yet</p>
+            <p className="text-sm text-ghost text-center py-4">No words yet</p>
           )}
         </div>
       )}

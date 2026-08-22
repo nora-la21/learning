@@ -114,3 +114,112 @@ export type GameMode =
   | 'listening'
   | 'reverse_type_it'
   | 'all_in_one'
+
+export interface DueListEntry {
+  list_id: number
+  name: string
+  count: number
+}
+
+export interface DueSummary {
+  total: number
+  word_ids: number[]
+  primary_list_id: number | null
+  by_list: DueListEntry[]
+}
+
+export interface RecentWord {
+  id: number
+  source_word: string
+  target_word: string
+  list_id: number
+  list_name: string
+  created_at: string
+}
+
+export interface MasteredWord {
+  word_id: number
+  source_word: string
+  target_word: string
+  list_id: number
+  list_name: string
+  marked_known: boolean
+  mastered_modes: number
+  total_correct: number
+  total_incorrect: number
+  last_seen_at: string | null
+}
+
+export interface MasteredWords {
+  total: number
+  words: MasteredWord[]
+}
+
+/** Which column of the conjugation table a question asks for. */
+export type VerbMode =
+  | 'past_singular'
+  | 'past_plural'
+  | 'participle'
+  | 'auxiliary'
+  | 'meaning'
+  | 'all_forms'
+
+export interface VerbModeProgress {
+  mastered: boolean
+  repetitions: number
+}
+
+export interface IrregularVerb {
+  id: number
+  infinitive: string
+  past_singular: string
+  past_plural: string
+  participle: string
+  auxiliary: string
+  meaning: string
+  progress: Partial<Record<VerbMode, VerbModeProgress>>
+}
+
+export interface VerbSummary {
+  total_verbs: number
+  due: number
+  modes: { mode: VerbMode; label: string; practised: number; mastered: number }[]
+}
+
+export interface VerbStartResponse {
+  session_id: string
+  total: number
+  modes: VerbMode[]
+  verb_count: number
+}
+
+export interface VerbQuestion {
+  verb_id: number
+  mode: VerbMode
+  mode_label: string
+  infinitive: string
+  meaning: string
+  options: string[] | null
+  progress_index: number
+  total: number
+  streak: number
+}
+
+export interface VerbRow {
+  infinitive: string
+  past_singular: string
+  past_plural: string
+  participle: string
+  auxiliary: string
+  meaning: string
+}
+
+export interface VerbAnswerResponse {
+  correct: boolean
+  expected: string
+  streak: number
+  progress_index: number
+  total: number
+  session_complete: boolean
+  verb: VerbRow
+}

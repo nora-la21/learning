@@ -9,10 +9,10 @@ import TypeItMode from '../modes/TypeItMode'
 import { useSpeech } from '../hooks/useSpeech'
 
 const MODE_LABELS: Record<string, string> = {
-  multiple_choice: '🃏 Word → Translation',
-  reverse_mc: '🔄 Translation → Word',
-  listening: '👂 Listening',
-  reverse_type_it: '✍️ Type It',
+  multiple_choice: 'Word → Translation',
+  reverse_mc: 'Translation → Word',
+  listening: 'Listening',
+  reverse_type_it: 'Type It',
 }
 
 interface Props {
@@ -20,6 +20,8 @@ interface Props {
   mode: GameMode
   sessionSize?: number | null
   wordIds?: number[]
+  skipMasteredModes?: boolean
+  review?: boolean
   onBack: () => void
 }
 
@@ -32,7 +34,7 @@ type FeedbackState = {
 
 export type AnswerFeedback = { correct: boolean; almost: boolean; correctAnswer: string } | null
 
-export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onBack }: Props) {
+export default function GameShell({ listId, mode, sessionSize = 10, wordIds, skipMasteredModes = false, review = false, onBack }: Props) {
   const effectiveSize = sessionSize ?? 9999
   const [sessionId, setSessionId] = useState<string | null>(null)
   const [question, setQuestion] = useState<GameQuestion | null>(null)
@@ -46,10 +48,11 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [answering, setAnswering] = useState(false)
+  const answeringRef = useRef(false)
   const [waitingForNext, setWaitingForNext] = useState(false)
   const pendingAdvance = useRef<(() => void) | null>(null)
   const navigate = useNavigate()
-  const { speak, preload } = useSpeech()
+  const { speak, preload, cancel } = useSpeech()
   const feedbackTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   useEffect(() => {
@@ -59,6 +62,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
+      if (e.repeat) return
       if (!waitingForNext) return
       if (e.key !== 'Enter' && e.key !== ' ') return
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
@@ -77,7 +81,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
     setXp(0)
     setStreak(0)
     try {
-      const session = await api.startGame(listId, mode, effectiveSize, wordIds)
+      const session = await api.startGame(listId, mode, effectiveSize, wordIds, skipMasteredModes, review)
       setSessionId(session.session_id)
       setTotal(session.total)
       await loadNext(session.session_id)
@@ -92,8 +96,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
     try {
       const q = await api.nextQuestion(sid)
       setQuestion(q)
-      // Start fetching audio for every word that will be spoken this question
-      preload(q.prompt, q.prompt_lang)   // use prompt_lang, not source_lang
+      preload(q.prompt, q.prompt_lang)
       const optionLang = q.mode === 'reverse_mc' ? q.source_lang : q.target_lang
       q.options?.forEach(opt => preload(opt, optionLang))
     } catch {
@@ -102,49 +105,54 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
   }
 
   const handleSkip = async () => {
-    if (!sessionId || !question || answering) return
+    if (!sessionId || !question || answeringRef.current) return
+    answeringRef.current = true
     setAnswering(true)
     try {
-      // Permanently mark as known so it never appears again
       await api.setWordLearned(question.word_id, true)
       const result = await api.skipWord(sessionId, question.word_id)
       setProgress(result.progress_index)
       if (result.progress_index >= result.total) {
         setFinished(true)
+        answeringRef.current = false
         setAnswering(false)
         return
       }
       if (result.mode_complete && result.new_mode) {
         setModeTransition(MODE_LABELS[result.new_mode] ?? result.new_mode)
         setTimeout(async () => {
-          setModeTransition(null)
           await loadNext(sessionId)
+          setModeTransition(null)
+          answeringRef.current = false
           setAnswering(false)
         }, 1800)
       } else {
         await loadNext(sessionId)
+        answeringRef.current = false
         setAnswering(false)
       }
     } catch (e: any) {
       setError(e.message)
+      answeringRef.current = false
       setAnswering(false)
     }
   }
 
   const handleAnswer = async (chosen: string, timeMs: number) => {
-    if (!sessionId || !question || answering) return
+    if (!sessionId || !question || answeringRef.current) return
+    answeringRef.current = true
     setAnswering(true)
 
     try {
       const result: GameAnswerResponse = await api.submitAnswer(
-        sessionId, question.word_id, chosen, timeMs
+        sessionId, question.word_id, chosen, timeMs,
+        localStorage.getItem('known-on-type-mastery') === 'true',
       )
       setXp(x => x + result.xp_gained)
       setStreak(result.streak)
       setProgress(result.progress_index)
 
       if (question.mode === 'listening') {
-        // Always speak the Dutch word after answering — reinforcement regardless of correct/wrong
         speak(question.prompt, question.source_lang)
       } else if (result.correct) {
         const dutchWord = question.prompt_lang === question.source_lang
@@ -161,25 +169,31 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
       })
 
       const advance = async () => {
+        cancel()
         setWaitingForNext(false)
         pendingAdvance.current = null
-        setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
 
         if (result.progress_index >= result.total) {
+          setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
           setFinished(true)
+          answeringRef.current = false
           setAnswering(false)
           return
         }
 
         if (result.mode_complete && result.new_mode) {
           setModeTransition(MODE_LABELS[result.new_mode] ?? result.new_mode)
+          setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
           setTimeout(async () => {
-            setModeTransition(null)
             await loadNext(sessionId)
+            setModeTransition(null)
+            answeringRef.current = false
             setAnswering(false)
           }, 1800)
         } else {
+          setFeedback({ show: false, correct: false, almost: false, correctAnswer: '' })
           await loadNext(sessionId)
+          answeringRef.current = false
           setAnswering(false)
         }
       }
@@ -188,20 +202,21 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
       setWaitingForNext(true)
     } catch (e: any) {
       setError(e.message)
+      answeringRef.current = false
       setAnswering(false)
     }
   }
 
   if (loading) return (
     <div className="flex items-center justify-center h-64">
-      <div className="text-gray-400 text-lg animate-pulse">Loading session…</div>
+      <div className="text-ghost text-lg animate-pulse">Loading session…</div>
     </div>
   )
 
   if (error) return (
     <div className="text-center py-16 space-y-4">
       <p className="text-red-500 font-medium">{error}</p>
-      <button onClick={onBack} className="text-violet-600 hover:underline">← Back</button>
+      <button onClick={onBack} className="text-accent hover:underline">← Back</button>
     </div>
   )
 
@@ -218,52 +233,52 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center justify-between">
-        <button onClick={onBack} className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition text-sm">
+        <button onClick={onBack} className="text-ghost hover:text-ink transition text-sm">
           ← Back
         </button>
-        <div className="flex items-center gap-3 text-sm font-medium">
-          {streak >= 2 && <span className="text-orange-500">🔥 {streak}</span>}
-          <span className="text-violet-600 dark:text-violet-400">⚡ {xp} XP</span>
+        <div className="text-sm text-muted font-mono">
+          {streak >= 2 && <span>{streak} streak · </span>}
+          <span>{xp} xp</span>
         </div>
       </div>
 
-      {/* Mode label */}
+      {/* Phase label */}
       {isAllInOne && question && (
         <div className="text-center">
-          <span className="text-xs font-semibold uppercase tracking-widest text-violet-500 dark:text-violet-400">
-            Phase {question.mode_index + 1}/{question.total_modes} — {currentModeLabel}
+          <span className="text-[11px] font-semibold uppercase tracking-[.15em] text-accent">
+            Phase {question.mode_index + 1}/{question.total_modes} · {currentModeLabel}
           </span>
         </div>
       )}
 
       {/* Progress bar */}
       <div>
-        <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+        <div className="h-1 bg-track rounded-full overflow-hidden">
           <div
-            className="h-full bg-violet-500 rounded-full transition-all duration-500"
+            className="h-full bg-ink rounded-full transition-all duration-500"
             style={{ width: `${progressPct}%` }}
           />
         </div>
         <div className="flex justify-between mt-1">
-          <span className="text-xs text-gray-400">
+          <span className="text-xs text-ghost">
             {question?.is_retry ? '⟳ Repeating incorrect' : ''}
           </span>
-          <span className="text-xs text-gray-400">{progress} / {total}</span>
+          <span className="text-xs text-ghost">{progress} / {total}</span>
         </div>
       </div>
 
       {/* Mode transition banner */}
       {modeTransition && (
-        <div className="rounded-xl px-5 py-4 text-center bg-violet-600 text-white font-semibold animate-pulse">
+        <div className="rounded-xl px-5 py-4 text-center bg-ink text-onink font-semibold animate-pulse">
           Next up: {modeTransition}
         </div>
       )}
 
       {/* Question card */}
       {question && !modeTransition && (
-        <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-200 dark:border-gray-700 p-6 shadow-sm relative">
+        <div className="bg-surface rounded-2xl border border-border p-6 shadow-sm relative">
           {!isAllInOne && (
-            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400 mb-4 text-center">
+            <p className="text-[11px] font-semibold uppercase tracking-[.15em] text-ghost mb-4 text-center">
               {currentModeLabel}
             </p>
           )}
@@ -282,7 +297,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
           {!feedback.show && !answering && (
             <button
               onClick={handleSkip}
-              className="mt-3 w-full py-2 rounded-xl text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 border border-dashed border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 transition"
+              className="mt-3 w-full py-2 rounded-xl text-[11px] uppercase tracking-[.12em] text-ghost hover:text-ink border border-dashed border-track hover:border-border transition"
             >
               ✓ I already know this word
             </button>
@@ -290,7 +305,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, onB
           {waitingForNext && (
             <button
               onClick={() => pendingAdvance.current?.()}
-              className="mt-4 w-full py-2.5 rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+              className="mt-4 w-full py-2.5 rounded-xl bg-paper text-muted text-sm font-medium hover:bg-track transition"
             >
               Continue → <span className="opacity-40 text-xs ml-1">Enter</span>
             </button>
@@ -309,20 +324,20 @@ function FinishScreen({ xp, total, onBack, onReplay, onProgress }: {
     <div className="text-center space-y-6 py-8">
       <div className="text-6xl">🎉</div>
       <div>
-        <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Session Complete!</h2>
-        <p className="text-gray-500 dark:text-gray-400 mt-1">{total} words · {xp} XP earned</p>
+        <h2 className="text-2xl font-bold text-ink">Session Complete!</h2>
+        <p className="text-muted mt-1">{total} words · {xp} xp earned</p>
       </div>
       <div className="flex flex-col gap-3 max-w-xs mx-auto">
         <button onClick={onReplay}
-          className="py-3 rounded-xl bg-violet-600 text-white font-semibold hover:bg-violet-700 transition">
+          className="py-3 rounded-[9px] bg-ink text-onink font-semibold hover:opacity-80 transition">
           Practice Again
         </button>
         <button onClick={onProgress}
-          className="py-3 rounded-xl border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800 transition">
+          className="py-3 rounded-[9px] border border-border text-muted hover:bg-paper transition">
           View Progress
         </button>
         <button onClick={onBack}
-          className="text-sm text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition">
+          className="text-sm text-ghost hover:text-ink transition">
           ← Back to lists
         </button>
       </div>

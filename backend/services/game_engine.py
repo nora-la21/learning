@@ -1,9 +1,12 @@
+import json
 import re
 import random
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from typing import Optional
 from database import get_db
+from services.scoping import known_join, NOT_KNOWN
+from services.text_match import loose
 
 _STRIP_PREFIXES = ("the ", "to ", "a ", "an ")
 
@@ -98,6 +101,7 @@ ALL_IN_ONE_SEQUENCE = ["multiple_choice", "reverse_mc", "listening", "reverse_ty
 class GameSession:
     session_id: str
     list_id: int
+    user_id: int
     all_modes: list
     current_mode_index: int
     base_word_ids: list
@@ -109,6 +113,7 @@ class GameSession:
     source_lang: str = "nl"
     target_lang: str = "en"
     distractor_word_ids: list = field(default_factory=list)
+    per_mode_word_ids: dict = field(default_factory=dict)  # mode -> word_ids when skip_mastered_modes
 
     @property
     def mode(self) -> str:
@@ -118,45 +123,146 @@ class GameSession:
 
     @property
     def total(self) -> int:
+        if self.per_mode_word_ids:
+            return sum(len(self.per_mode_word_ids.get(m, [])) for m in self.all_modes)
         return len(self.all_modes) * len(self.base_word_ids)
 
     @property
     def progress(self) -> int:
+        if self.per_mode_word_ids:
+            completed = sum(
+                len(self.per_mode_word_ids.get(self.all_modes[i], []))
+                for i in range(min(self.current_mode_index, len(self.all_modes)))
+            )
+            return completed + len(self.correctly_done_this_mode)
         return self.current_mode_index * len(self.base_word_ids) + len(self.correctly_done_this_mode)
 
     @property
     def is_complete(self) -> bool:
         return self.current_mode_index >= len(self.all_modes)
 
+    def words_for_next_mode(self) -> list:
+        """Return the word list for the current mode after a transition."""
+        if self.per_mode_word_ids:
+            words = list(self.per_mode_word_ids.get(self.mode, self.base_word_ids[:]))
+        else:
+            words = self.base_word_ids[:]
+        random.shuffle(words)
+        return words
 
+
+# In-process cache in front of the game_sessions table. Sessions used to live
+# only here, so a restart — a deploy, or a free-tier host waking from sleep —
+# dropped every session in progress. Mid-practice that surfaced as "Session not
+# found", or as the finish screen appearing over an unfinished session.
 _sessions: dict[str, GameSession] = {}
 
+SESSION_TTL_DAYS = 2
 
-def create_session(list_id: int, mode: str, session_size: int, word_ids: list[int] | None = None) -> GameSession:
+
+def _serialize(session: GameSession) -> str:
+    data = asdict(session)
+    data["correctly_done_this_mode"] = sorted(session.correctly_done_this_mode)
+    return json.dumps(data)
+
+
+def _deserialize(raw: str) -> GameSession:
+    data = json.loads(raw)
+    data["correctly_done_this_mode"] = set(data.get("correctly_done_this_mode") or [])
+    return GameSession(**data)
+
+
+def _store(session: GameSession) -> None:
+    _sessions[session.session_id] = session
+    payload = _serialize(session)
+    conn = get_db()
+    try:
+        updated = conn.execute(
+            "UPDATE game_sessions SET data = ?, updated_at = ? WHERE session_id = ?",
+            (payload, _now_str(), session.session_id),
+        )
+        if not updated.rowcount:
+            conn.execute(
+                "INSERT OR IGNORE INTO game_sessions (session_id, user_id, data, updated_at) "
+                "VALUES (?, ?, ?, ?)",
+                (session.session_id, session.user_id, payload, _now_str()),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _load(session_id: str, user_id: int) -> Optional[GameSession]:
+    """Only ever returns a session belonging to the caller."""
+    cached = _sessions.get(session_id)
+    if cached is not None:
+        return cached if cached.user_id == user_id else None
+    conn = get_db()
+    try:
+        row = conn.execute(
+            "SELECT data FROM game_sessions WHERE session_id = ? AND user_id = ?",
+            (session_id, user_id),
+        ).fetchone()
+    finally:
+        conn.close()
+    if not row:
+        return None
+    session = _deserialize(row["data"])
+    _sessions[session_id] = session  # cache only; nothing has changed to write back
+    return session
+
+
+def _purge_expired() -> None:
+    """Sessions are abandoned far more often than they are finished."""
+    conn = get_db()
+    try:
+        conn.execute(
+            f"DELETE FROM game_sessions WHERE updated_at < datetime('now', '-{SESSION_TTL_DAYS} days')"
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def create_session(list_id: int, mode: str, session_size: int, word_ids: list[int] | None = None, skip_mastered_modes: bool = False, preserve_order: bool = False, *, user_id: int) -> GameSession:
     if mode not in INDIVIDUAL_MODES and mode != "all_in_one":
         raise ValueError(f"Invalid mode: {mode}")
 
     conn = get_db()
     list_row = conn.execute(
-        "SELECT source_lang, target_lang FROM word_lists WHERE id = ?", (list_id,)
+        "SELECT source_lang, target_lang FROM word_lists WHERE id = ? "
+        "AND (builtin = 1 OR user_id = ?)", (list_id, user_id)
     ).fetchone()
     if not list_row:
         conn.close()
         raise ValueError("Word list not found")
 
+    # A review session passes its words already ordered by how overdue they are,
+    # so keep that order: trimming to session_size must drop the least urgent.
+    if word_ids is not None and preserve_order:
+        ph = ','.join('?' * len(word_ids))
+        rows = conn.execute(
+            f"SELECT w.id FROM words w {known_join()} "
+            f"WHERE w.id IN ({ph}) AND {NOT_KNOWN}",
+            (user_id, *word_ids),
+        ).fetchall()
+        allowed = {r["id"] for r in rows}
+        pool = [wid for wid in word_ids if wid in allowed]
+
     # When specific word_ids provided, fetch those directly (supports multi-list sessions)
-    if word_ids is not None:
+    elif word_ids is not None:
         ph = ','.join('?' * len(word_ids))
         if mode == "all_in_one":
             all_words = conn.execute(
                 f"SELECT w.id, "
                 f"COALESCE(SUM(wp.correct_count + wp.incorrect_count), 0) as times_seen, "
                 f"SUM(CASE WHEN wp.mastered = 1 THEN 1 ELSE 0 END) as modes_mastered "
-                f"FROM words w LEFT JOIN word_progress wp ON wp.word_id = w.id "
-                f"WHERE w.id IN ({ph}) AND w.manually_excluded = 0 GROUP BY w.id",
-                word_ids,
+                f"FROM words w "
+                f"LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.user_id = ? "
+                f"{known_join()} "
+                f"WHERE w.id IN ({ph}) AND {NOT_KNOWN} GROUP BY w.id",
+                (user_id, user_id, *word_ids),
             ).fetchall()
-            conn.close()
             buckets: dict[tuple, list] = {}
             for row in all_words:
                 key = (1 if row["modes_mastered"] >= 4 else 0, row["times_seen"])
@@ -166,11 +272,12 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
                 f"SELECT w.id, "
                 f"COALESCE(wp.correct_count + wp.incorrect_count, 0) as times_seen, "
                 f"COALESCE(wp.mastered, 0) as mastered "
-                f"FROM words w LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? "
-                f"WHERE w.id IN ({ph}) AND w.manually_excluded = 0",
-                [mode] + list(word_ids),
+                f"FROM words w "
+                f"LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? AND wp.user_id = ? "
+                f"{known_join()} "
+                f"WHERE w.id IN ({ph}) AND {NOT_KNOWN}",
+                (mode, user_id, user_id, *word_ids),
             ).fetchall()
-            conn.close()
             buckets = {}
             for row in all_words:
                 key = (row["mastered"], row["times_seen"])
@@ -187,12 +294,12 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
                 "COALESCE(SUM(wp.correct_count + wp.incorrect_count), 0) as times_seen, "
                 "SUM(CASE WHEN wp.mastered = 1 THEN 1 ELSE 0 END) as modes_mastered "
                 "FROM words w "
-                "LEFT JOIN word_progress wp ON wp.word_id = w.id "
-                "WHERE w.list_id = ? AND w.manually_excluded = 0 "
+                "LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.user_id = ? "
+                f"{known_join()} "
+                f"WHERE w.list_id = ? AND {NOT_KNOWN} "
                 "GROUP BY w.id",
-                (list_id,),
+                (user_id, user_id, list_id),
             ).fetchall()
-            conn.close()
             buckets = {}
             for row in all_words:
                 key = (1 if row["modes_mastered"] >= 4 else 0, row["times_seen"])
@@ -203,11 +310,11 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
                 "COALESCE(wp.correct_count + wp.incorrect_count, 0) as times_seen, "
                 "COALESCE(wp.mastered, 0) as mastered "
                 "FROM words w "
-                "LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? "
-                "WHERE w.list_id = ? AND w.manually_excluded = 0",
-                (mode, list_id),
+                "LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? AND wp.user_id = ? "
+                f"{known_join()} "
+                f"WHERE w.list_id = ? AND {NOT_KNOWN}",
+                (mode, user_id, user_id, list_id),
             ).fetchall()
-            conn.close()
             buckets = {}
             for row in all_words:
                 key = (row["mastered"], row["times_seen"])
@@ -219,34 +326,64 @@ def create_session(list_id: int, mode: str, session_size: int, word_ids: list[in
             pool.extend(group)
 
     if len(pool) < 4:
+        conn.close()
         raise ValueError("Need at least 4 words to start a session")
 
     size = min(session_size, len(pool))
     unique = pool[:size]
     random.shuffle(unique)
 
+    # Build per-mode word lists when skip_mastered_modes is on (all_in_one only)
+    per_mode_word_ids: dict = {}
     all_modes = ALL_IN_ONE_SEQUENCE if mode == "all_in_one" else [mode]
+    if skip_mastered_modes and mode == "all_in_one" and unique:
+        uid_set = set(unique)
+        ph = ','.join('?' * len(unique))
+        for m in ALL_IN_ONE_SEQUENCE:
+            rows = conn.execute(
+                f"SELECT w.id FROM words w "
+                f"LEFT JOIN word_progress wp ON wp.word_id = w.id AND wp.mode = ? AND wp.user_id = ? "
+                f"WHERE w.id IN ({ph}) AND COALESCE(wp.mastered, 0) = 0",
+                (m, user_id, *unique),
+            ).fetchall()
+            not_mastered = {r["id"] for r in rows}
+            mode_words = [wid for wid in unique if wid in not_mastered]
+            if mode_words:
+                per_mode_word_ids[m] = mode_words
+        active_modes = [m for m in ALL_IN_ONE_SEQUENCE if m in per_mode_word_ids]
+        if active_modes:
+            all_modes = active_modes
+        else:
+            per_mode_word_ids = {}  # everything mastered, fall back to normal
+
+    conn.close()
+
+    initial_queue = list(per_mode_word_ids[all_modes[0]]) if per_mode_word_ids else unique[:]
+    random.shuffle(initial_queue)
 
     session_id = str(uuid.uuid4())
     session = GameSession(
         session_id=session_id,
         list_id=list_id,
+        user_id=user_id,
         all_modes=all_modes,
         current_mode_index=0,
         base_word_ids=unique[:],
-        word_queue=unique[:],
+        word_queue=initial_queue,
         wrong_this_pass=[],
         correctly_done_this_mode=set(),
         source_lang=list_row["source_lang"],
         target_lang=list_row["target_lang"],
         distractor_word_ids=list(pool) if word_ids is not None else [],
+        per_mode_word_ids=per_mode_word_ids,
     )
-    _sessions[session_id] = session
+    _store(session)
+    _purge_expired()
     return session
 
 
-def get_next_question(session_id: str) -> Optional[dict]:
-    session = _sessions.get(session_id)
+def get_next_question(session_id: str, user_id: int) -> Optional[dict]:
+    session = _load(session_id, user_id)
     if not session or session.is_complete:
         return None
     if not session.word_queue:
@@ -330,8 +467,8 @@ def get_next_question(session_id: str) -> Optional[dict]:
     }
 
 
-def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> dict:
-    session = _sessions.get(session_id)
+def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int, user_id: int) -> dict:
+    session = _load(session_id, user_id)
     if not session:
         raise ValueError("Session not found")
 
@@ -383,12 +520,11 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
         mode_complete = True
 
         if not session.is_complete:
-            shuffled = session.base_word_ids[:]
-            random.shuffle(shuffled)
-            session.word_queue = shuffled
+            session.word_queue = session.words_for_next_mode()
             new_mode = session.mode
 
     conn.close()
+    _store(session)
     return {
         "correct": correct,
         "almost": almost,
@@ -405,8 +541,8 @@ def submit_answer(session_id: str, word_id: int, chosen: str, time_ms: int) -> d
     }
 
 
-def skip_word(session_id: str, word_id: int) -> dict:
-    session = _sessions.get(session_id)
+def skip_word(session_id: str, word_id: int, user_id: int) -> dict:
+    session = _load(session_id, user_id)
     if not session:
         raise ValueError("Session not found")
 
@@ -427,13 +563,15 @@ def skip_word(session_id: str, word_id: int) -> dict:
     mode_complete = False
     new_mode = None
     if not session.word_queue:
+        session.current_mode_index += 1
+        session.wrong_this_pass = []
+        session.correctly_done_this_mode = set()
         mode_complete = True
         if not session.is_complete:
-            shuffled = session.base_word_ids[:]
-            random.shuffle(shuffled)
-            session.word_queue = shuffled
+            session.word_queue = session.words_for_next_mode()
             new_mode = session.mode
 
+    _store(session)
     return {
         "progress_index": session.progress,
         "total": session.total,
@@ -474,8 +612,15 @@ _NUMBER_WORDS: dict[str, str] = {
 
 
 def _normalize(text: str) -> str:
-    """Normalize for comparison: lowercase, strip commas/periods, map number words to digits."""
-    t = re.sub(r"[,\.]+", "", text.strip().lower()).strip()
+    """Normalize for comparison: fold typography, lowercase, strip commas and
+    periods, map number words to digits.
+
+    The fold has to come first. A phone writes "ik ben... jaar oud" with a single
+    U+2026 ellipsis, which the period-stripping regex does not match, so the
+    answer differed from the expected one by a character the learner could not
+    see on screen.
+    """
+    t = re.sub(r"[,\.]+", "", loose(text)).strip()
     t = re.sub(r"\s+", " ", t)
     return _NUMBER_WORDS.get(t, t)
 
