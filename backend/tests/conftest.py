@@ -29,6 +29,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 import database  # noqa: E402
 
 TABLES = ("auth_sessions", "users", "user_word_flags", "game_sessions", "push_subscriptions",
+          "verb_progress", "irregular_verbs",
           "answer_events", "word_progress", "words", "word_lists")
 
 
@@ -44,6 +45,7 @@ def reset_database() -> None:
     conn.close()
     database.init_db()
     database.seed_builtin_lists()
+    database.seed_irregular_verbs()
 
 
 @pytest.fixture(scope="module")

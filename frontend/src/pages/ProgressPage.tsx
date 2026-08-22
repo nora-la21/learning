@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts'
 import { api } from '../api/client'
+import NavMenu from '../components/NavMenu'
 import type { HeatmapEntry, ProgressSummary, WordProgressDetail } from '../types'
 
 const COLORS = { mastered: '#6E8A5E', in_progress: '#B5583C', not_started: '#EBE4D8' }
@@ -67,6 +68,7 @@ export default function ProgressPage() {
 
   return (
     <div className="min-h-screen bg-paper transition-colors">
+      <NavMenu />
       <div className="max-w-4xl mx-auto px-4 py-10">
         <div className="flex items-center gap-4 mb-6 pb-4 border-b border-border">
           <button

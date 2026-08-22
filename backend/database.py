@@ -84,6 +84,32 @@ def init_db() -> None:
             answered_at TEXT NOT NULL DEFAULT (datetime('now'))
         );
 
+        CREATE TABLE IF NOT EXISTS irregular_verbs (
+            id            INTEGER PRIMARY KEY AUTOINCREMENT,
+            infinitive    TEXT NOT NULL UNIQUE,
+            past_singular TEXT NOT NULL,
+            past_plural   TEXT NOT NULL,
+            participle    TEXT NOT NULL,
+            auxiliary     TEXT NOT NULL,
+            meaning       TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS verb_progress (
+            id              INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id         INTEGER NOT NULL,
+            verb_id         INTEGER NOT NULL REFERENCES irregular_verbs(id) ON DELETE CASCADE,
+            mode            TEXT NOT NULL,
+            repetitions     INTEGER NOT NULL DEFAULT 0,
+            ease_factor     REAL NOT NULL DEFAULT 2.5,
+            interval_days   INTEGER NOT NULL DEFAULT 1,
+            next_review_at  TEXT NOT NULL DEFAULT (datetime('now')),
+            correct_count   INTEGER NOT NULL DEFAULT 0,
+            incorrect_count INTEGER NOT NULL DEFAULT 0,
+            last_seen_at    TEXT,
+            mastered        INTEGER NOT NULL DEFAULT 0,
+            UNIQUE(user_id, verb_id, mode)
+        );
+
         CREATE TABLE IF NOT EXISTS user_word_flags (
             id      INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -357,3 +383,46 @@ def _rehome_builtin_words(conn, list_ids: dict, corpus) -> None:
         if stale["id"] not in keep:
             conn.execute("DELETE FROM word_lists WHERE id = ?", (stale["id"],))
     conn.commit()
+
+
+def seed_irregular_verbs() -> None:
+    """Load the strong-verb table. Idempotent, and updates rows that changed."""
+    from data.irregular_verbs import IRREGULAR_VERBS
+
+    conn = get_db()
+    try:
+        existing = {
+            r["infinitive"]: r
+            for r in conn.execute(
+                "SELECT id, infinitive, past_singular, past_plural, participle, "
+                "auxiliary, meaning FROM irregular_verbs"
+            ).fetchall()
+        }
+        inserts, updates = [], []
+        for inf, sg, pl, part, aux, meaning in IRREGULAR_VERBS:
+            row = existing.get(inf)
+            if row is None:
+                inserts.append((inf, sg, pl, part, aux, meaning))
+            elif (row["past_singular"], row["past_plural"], row["participle"],
+                  row["auxiliary"], row["meaning"]) != (sg, pl, part, aux, meaning):
+                # Corrections to the table must reach people who already have it,
+                # and updating in place keeps their practice history attached.
+                updates.append((sg, pl, part, aux, meaning, row["id"]))
+
+        if inserts:
+            conn.executemany(
+                "INSERT OR IGNORE INTO irregular_verbs "
+                "(infinitive, past_singular, past_plural, participle, auxiliary, meaning) "
+                "VALUES (?, ?, ?, ?, ?, ?)", inserts)
+        if updates:
+            conn.executemany(
+                "UPDATE irregular_verbs SET past_singular = ?, past_plural = ?, "
+                "participle = ?, auxiliary = ?, meaning = ? WHERE id = ?", updates)
+
+        wanted = {v[0] for v in IRREGULAR_VERBS}
+        for inf in existing:
+            if inf not in wanted:
+                conn.execute("DELETE FROM irregular_verbs WHERE infinitive = ?", (inf,))
+        conn.commit()
+    finally:
+        conn.close()

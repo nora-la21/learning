@@ -3,6 +3,8 @@ import type {
   WordPair, GameStartResponse, GameQuestion, GameAnswerResponse,
   ProgressSummary, WordProgressDetail, HeatmapEntry, GameMode,
   DueSummary, RecentWord,
+  IrregularVerb, VerbSummary, VerbMode, VerbStartResponse, VerbQuestion,
+  VerbAnswerResponse,
 } from '../types'
 import { authHeaders, onUnauthorized } from './auth'
 
@@ -92,4 +94,24 @@ export const api = {
   getDue: () => req<DueSummary>('/progress/due'),
   resetAllProgress: () => req<void>('/progress/reset-all', { method: 'POST' }),
   getRecentWords: (days = 7) => req<RecentWord[]>(`/words/recent?days=${days}`),
+
+  getVerbs: () => req<IrregularVerb[]>('/verbs/'),
+  getVerbSummary: () => req<VerbSummary>('/verbs/summary'),
+  startVerbGame: (mode: VerbMode, sessionSize = 10) =>
+    req<VerbStartResponse>('/verbs/game/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ mode, session_size: sessionSize }),
+    }),
+  nextVerbQuestion: (sessionId: string) =>
+    req<VerbQuestion>(`/verbs/game/next?session_id=${sessionId}`),
+  answerVerb: (sessionId: string, verbId: number, mode: VerbMode, answer: string, timeMs: number) =>
+    req<VerbAnswerResponse>('/verbs/game/answer', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        session_id: sessionId, verb_id: verbId, mode, answer, time_ms: timeMs,
+      }),
+    }),
+  resetVerbProgress: () => req<void>('/verbs/reset', { method: 'POST' }),
 }

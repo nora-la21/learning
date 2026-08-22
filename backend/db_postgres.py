@@ -224,6 +224,32 @@ CREATE TABLE IF NOT EXISTS answer_events (
     answered_at TIMESTAMP NOT NULL DEFAULT NOW()
 );
 
+CREATE TABLE IF NOT EXISTS irregular_verbs (
+    id            SERIAL PRIMARY KEY,
+    infinitive    TEXT NOT NULL UNIQUE,
+    past_singular TEXT NOT NULL,
+    past_plural   TEXT NOT NULL,
+    participle    TEXT NOT NULL,
+    auxiliary     TEXT NOT NULL,
+    meaning       TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS verb_progress (
+    id              SERIAL PRIMARY KEY,
+    user_id         INTEGER NOT NULL,
+    verb_id         INTEGER NOT NULL REFERENCES irregular_verbs(id) ON DELETE CASCADE,
+    mode            TEXT NOT NULL,
+    repetitions     INTEGER NOT NULL DEFAULT 0,
+    ease_factor     DOUBLE PRECISION NOT NULL DEFAULT 2.5,
+    interval_days   INTEGER NOT NULL DEFAULT 1,
+    next_review_at  TIMESTAMP NOT NULL DEFAULT NOW(),
+    correct_count   INTEGER NOT NULL DEFAULT 0,
+    incorrect_count INTEGER NOT NULL DEFAULT 0,
+    last_seen_at    TIMESTAMP,
+    mastered        INTEGER NOT NULL DEFAULT 0,
+    UNIQUE(user_id, verb_id, mode)
+);
+
 CREATE TABLE IF NOT EXISTS user_word_flags (
     id      SERIAL PRIMARY KEY,
     user_id INTEGER NOT NULL,

@@ -3,9 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { api } from '../api/client'
 import type { DueSummary, RecentWord, Word, WordList } from '../types'
 import UploadZone from '../components/UploadZone'
-import ThemeToggle from '../components/ThemeToggle'
-import ReminderToggle from '../components/ReminderToggle'
-import { authHeaders, getEmail, logout } from '../api/auth'
+import NavMenu from '../components/NavMenu'
 import { useSpeech } from '../hooks/useSpeech'
 
 const FLAG: Record<string, string> = {
@@ -59,7 +57,6 @@ export default function HomePage() {
   const [myLists, setMyLists] = useState<WordList[]>([])
   const [showUpload, setShowUpload] = useState(false)
   const [loading, setLoading] = useState(true)
-  const [importMsg, setImportMsg] = useState('')
   const [due, setDue] = useState<DueSummary | null>(null)
   const [recent, setRecent] = useState<RecentWord[]>([])
   const navigate = useNavigate()
@@ -96,52 +93,12 @@ export default function HomePage() {
     navigate(`/learn/${listId}`)
   }
 
-  const handleExport = async () => {
-    setImportMsg('Preparing…')
-    try {
-      const res = await fetch('/api/export', { headers: authHeaders() })
-      if (!res.ok) throw new Error()
-      // Anchor download rather than navigation, so the auth key stays out of history.
-      const url = URL.createObjectURL(await res.blob())
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `vocabulary-${new Date().toISOString().slice(0, 10)}.json`
-      a.click()
-      URL.revokeObjectURL(url)
-      setImportMsg('Downloaded')
-    } catch {
-      setImportMsg('Export failed')
-    }
-    setTimeout(() => setImportMsg(''), 4000)
-  }
-
-  const handleImportDb = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const form = new FormData()
-    form.append('file', file)
-    setImportMsg('Importing…')
-    try {
-      const res = await fetch('/api/import', { method: 'POST', headers: authHeaders(), body: form })
-      const data = await res.json().catch(() => null)
-      if (res.ok) {
-        const added = data?.words_added ?? 0
-        const restored = data?.progress_restored ?? 0
-        setImportMsg(`Imported ${added} words, ${restored} progress entries`)
-        setTimeout(() => window.location.reload(), 1500)
-      } else {
-        setImportMsg(data?.detail || 'Import failed')
-      }
-    } catch {
-      setImportMsg('Import failed')
-    }
-    e.target.value = ''
-  }
 
   const lists = tab === 'builtin' ? builtinLists : myLists
 
   return (
     <div className="min-h-screen bg-paper transition-colors">
+      <NavMenu />
       <div className="max-w-3xl mx-auto px-4 py-10">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -149,52 +106,14 @@ export default function HomePage() {
             <p className="text-[11px] uppercase tracking-[.15em] text-accent font-medium mb-1">Nederlands · vocabulary</p>
             <h1 className="text-3xl font-bold text-ink">My Vocabulary</h1>
           </div>
-          <div className="flex items-center gap-2">
-            <ThemeToggle />
-            <ReminderToggle />
+          {tab === 'my' && (
             <button
-              onClick={handleExport}
-              className="px-3 py-2 border border-border text-muted rounded-lg text-xs font-medium hover:text-ink hover:border-ink transition"
-              title="Download your words and progress as a file"
-            >⬇ Export</button>
-            <label className="cursor-pointer px-3 py-2 border border-border text-muted rounded-lg text-xs font-medium hover:text-ink hover:border-ink transition" title="Restore from an export file">
-              ⬆ Import
-              <input type="file" accept=".json" className="hidden" onChange={handleImportDb} />
-            </label>
-            {importMsg && <span className="text-xs text-ghost">{importMsg}</span>}
-            <button
-              onClick={async () => {
-                if (!confirm(
-                  'Reset all learning progress?\n\n' +
-                  'Your word lists are kept. Practice history, mastery, streak and ' +
-                  'the review schedule are erased. This cannot be undone.'
-                )) return
-                setImportMsg('Resetting…')
-                try {
-                  await api.resetAllProgress()
-                  setImportMsg('Progress reset')
-                  setTimeout(() => window.location.reload(), 800)
-                } catch {
-                  setImportMsg('Reset failed')
-                }
-              }}
-              className="px-3 py-2 border border-border text-muted rounded-lg text-xs font-medium hover:text-red-500 hover:border-red-500 transition"
-              title="Erase all practice history and start from zero"
-            >Start over</button>
-            <button
-              onClick={logout}
-              className="px-3 py-2 border border-border text-muted rounded-lg text-xs font-medium hover:text-ink hover:border-ink transition"
-              title={getEmail() ? `Signed in as ${getEmail()}` : 'Sign out'}
-            >Sign out</button>
-            {tab === 'my' && (
-              <button
-                onClick={() => setShowUpload(v => !v)}
-                className="px-4 py-2 bg-ink text-white rounded-[9px] text-sm font-medium hover:opacity-80 transition"
-              >
-                {showUpload ? '✕ Close' : '+ Upload words'}
-              </button>
-            )}
-          </div>
+              onClick={() => setShowUpload(v => !v)}
+              className="px-4 py-2 bg-ink text-white rounded-[9px] text-sm font-medium hover:opacity-80 transition"
+            >
+              {showUpload ? '✕ Close' : '+ Upload words'}
+            </button>
+          )}
         </div>
 
         {/* Due for review — the spaced-repetition schedule's daily prompt */}

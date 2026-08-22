@@ -136,3 +136,72 @@ export interface RecentWord {
   list_name: string
   created_at: string
 }
+
+/** Which column of the conjugation table a question asks for. */
+export type VerbMode =
+  | 'past_singular'
+  | 'past_plural'
+  | 'participle'
+  | 'auxiliary'
+  | 'meaning'
+  | 'all_forms'
+
+export interface VerbModeProgress {
+  mastered: boolean
+  repetitions: number
+}
+
+export interface IrregularVerb {
+  id: number
+  infinitive: string
+  past_singular: string
+  past_plural: string
+  participle: string
+  auxiliary: string
+  meaning: string
+  progress: Partial<Record<VerbMode, VerbModeProgress>>
+}
+
+export interface VerbSummary {
+  total_verbs: number
+  due: number
+  modes: { mode: VerbMode; label: string; practised: number; mastered: number }[]
+}
+
+export interface VerbStartResponse {
+  session_id: string
+  total: number
+  modes: VerbMode[]
+  verb_count: number
+}
+
+export interface VerbQuestion {
+  verb_id: number
+  mode: VerbMode
+  mode_label: string
+  infinitive: string
+  meaning: string
+  options: string[] | null
+  progress_index: number
+  total: number
+  streak: number
+}
+
+export interface VerbRow {
+  infinitive: string
+  past_singular: string
+  past_plural: string
+  participle: string
+  auxiliary: string
+  meaning: string
+}
+
+export interface VerbAnswerResponse {
+  correct: boolean
+  expected: string
+  streak: number
+  progress_index: number
+  total: number
+  session_complete: boolean
+  verb: VerbRow
+}

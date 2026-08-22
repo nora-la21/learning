@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import GameShell from '../components/GameShell'
+import NavMenu from '../components/NavMenu'
 import type { GameMode } from '../types'
 
 const MODES: { id: GameMode; label: string; desc: string; chip: string; highlight?: boolean }[] = [
@@ -54,6 +55,7 @@ export default function LearnPage() {
 
   return (
     <div className="min-h-screen bg-paper transition-colors">
+      <NavMenu />
       <div className="max-w-xl mx-auto px-4 py-10">
         <button
           onClick={() => navigate('/')}

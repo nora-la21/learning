@@ -6,8 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import Depends, FastAPI, HTTPException, Request, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
-from database import DB_PATH, USE_POSTGRES, init_db, seed_builtin_lists
-from routers import words, upload, game, progress, tts, push, auth
+from database import DB_PATH, USE_POSTGRES, init_db, seed_builtin_lists, seed_irregular_verbs
+from routers import words, upload, game, progress, tts, push, auth, verbs
 from routers.auth import current_user
 from services.transfer import export_all, import_all
 
@@ -16,6 +16,7 @@ from services.transfer import export_all, import_all
 async def lifespan(app: FastAPI):
     init_db()
     seed_builtin_lists()
+    seed_irregular_verbs()
     yield
 
 
@@ -51,6 +52,7 @@ app.include_router(progress.router)
 app.include_router(tts.router)
 app.include_router(push.router)
 app.include_router(auth.router)
+app.include_router(verbs.router)
 
 
 @app.get("/api/health")

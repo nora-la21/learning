@@ -3,6 +3,10 @@ import { BrowserRouter, Routes, Route } from 'react-router-dom'
 import HomePage from './pages/HomePage'
 import LearnPage from './pages/LearnPage'
 import ProgressPage from './pages/ProgressPage'
+import VerbsPage from './pages/VerbsPage'
+import ProfilePage from './pages/ProfilePage'
+import StatsPage from './pages/StatsPage'
+import SettingsPage from './pages/SettingsPage'
 import LoginPage from './pages/LoginPage'
 import { fetchMe } from './api/auth'
 
@@ -35,6 +39,10 @@ export default function App() {
         <Route path="/" element={<HomePage />} />
         <Route path="/learn/:listId" element={<LearnPage />} />
         <Route path="/progress/:listId" element={<ProgressPage />} />
+        <Route path="/verbs" element={<VerbsPage />} />
+        <Route path="/profile" element={<ProfilePage />} />
+        <Route path="/stats" element={<StatsPage />} />
+        <Route path="/settings" element={<SettingsPage />} />
       </Routes>
     </BrowserRouter>
   )
