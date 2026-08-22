@@ -178,7 +178,7 @@ export default function UploadZone({ onConfirmed }: Props) {
           <button
             onClick={confirm}
             disabled={loading || !listName.trim() || editableWords.length < 4}
-            className="flex-1 py-2 rounded-[9px] bg-ink text-white font-semibold hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed transition"
+            className="flex-1 py-2 rounded-[9px] bg-ink text-onink font-semibold hover:opacity-80 disabled:opacity-50 disabled:cursor-not-allowed transition"
           >
             {loading ? 'Saving…' : `Save ${editableWords.length} words`}
           </button>

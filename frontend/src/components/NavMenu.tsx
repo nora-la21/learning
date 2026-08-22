@@ -43,7 +43,7 @@ export default function NavMenu() {
               to={s.to}
               className={`px-3 py-1.5 rounded-lg text-sm transition-colors whitespace-nowrap ${
                 isActive(s.to)
-                  ? 'bg-ink text-white font-medium'
+                  ? 'bg-ink text-onink font-medium'
                   : 'text-muted hover:text-ink'
               }`}
             >{s.label}</Link>
@@ -55,7 +55,7 @@ export default function NavMenu() {
           <ReminderToggle />
           <button
             onClick={() => setOpen(v => !v)}
-            className="w-8 h-8 rounded-full bg-ink text-white text-xs font-semibold flex items-center justify-center"
+            className="w-8 h-8 rounded-full bg-ink text-onink text-xs font-semibold flex items-center justify-center"
             title={getEmail() ?? 'Account'}
             aria-haspopup="menu"
             aria-expanded={open}

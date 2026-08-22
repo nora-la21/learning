@@ -109,7 +109,7 @@ export default function HomePage() {
           {tab === 'my' && (
             <button
               onClick={() => setShowUpload(v => !v)}
-              className="px-4 py-2 bg-ink text-white rounded-[9px] text-sm font-medium hover:opacity-80 transition"
+              className="px-4 py-2 bg-ink text-onink rounded-[9px] text-sm font-medium hover:opacity-80 transition"
             >
               {showUpload ? '✕ Close' : '+ Upload words'}
             </button>
@@ -120,18 +120,18 @@ export default function HomePage() {
         {due && due.total > 0 && (
           <div className="bg-ink rounded-2xl p-5 mb-4 flex items-center gap-4">
             <div className="flex-1 min-w-0">
-              <p className="text-[11px] uppercase tracking-[.15em] text-white/50 font-medium mb-1">Due for review</p>
-              <p className="text-white text-[22px] font-semibold leading-tight">
+              <p className="text-[11px] uppercase tracking-[.15em] text-onink/50 font-medium mb-1">Due for review</p>
+              <p className="text-onink text-[22px] font-semibold leading-tight">
                 {due.total} {due.total === 1 ? 'word' : 'words'} ready
               </p>
-              <p className="text-white/60 text-xs mt-1 truncate">
+              <p className="text-onink/60 text-xs mt-1 truncate">
                 {due.by_list.slice(0, 2).map(l => `${l.name} (${l.count})`).join(' · ')}
                 {due.by_list.length > 2 && ` · +${due.by_list.length - 2} more`}
               </p>
             </div>
             <button
               onClick={() => navigate(`/learn/${due.primary_list_id}?words=${due.word_ids.join(',')}&review=1`)}
-              className="px-5 py-2.5 bg-white text-ink rounded-[9px] text-sm font-semibold hover:opacity-90 transition shrink-0"
+              className="px-5 py-2.5 bg-onink text-ink rounded-[9px] text-sm font-semibold hover:opacity-90 transition shrink-0"
             >Review now →</button>
           </div>
         )}
@@ -286,7 +286,7 @@ function RecentlySaved({
         {words.length >= 4 && (
           <button
             onClick={() => onPractice(words.map(w => w.id))}
-            className="px-4 py-2 bg-ink text-white rounded-[9px] text-sm font-medium hover:opacity-80 transition shrink-0"
+            className="px-4 py-2 bg-ink text-onink rounded-[9px] text-sm font-medium hover:opacity-80 transition shrink-0"
           >Practice these</button>
         )}
       </div>
@@ -417,7 +417,7 @@ function LevelGroup({
         {selectedSets.size > 0 && (
           <button
             onClick={() => { onPracticeSets(Array.from(selectedSets), excludeMastered); setSelectedSets(new Set()) }}
-            className="shrink-0 text-xs px-3 py-1.5 rounded-[9px] bg-ink text-white hover:opacity-80 transition font-medium"
+            className="shrink-0 text-xs px-3 py-1.5 rounded-[9px] bg-ink text-onink hover:opacity-80 transition font-medium"
           >▶ Practice {selectedSets.size} set{selectedSets.size > 1 ? 's' : ''}</button>
         )}
       </div>
@@ -567,7 +567,7 @@ function ListCard({
           >{expanded ? 'Hide' : 'Browse'}</button>
           <button
             onClick={onPractice}
-            className="px-3.5 py-1.5 text-sm rounded-[9px] bg-ink text-white font-medium hover:opacity-80 transition"
+            className="px-3.5 py-1.5 text-sm rounded-[9px] bg-ink text-onink font-medium hover:opacity-80 transition"
           >Practice</button>
           {onDelete && (
             <button
@@ -600,7 +600,7 @@ function ListCard({
                   <div className="flex gap-2">
                     <button
                       onClick={() => onPracticeSelected(Array.from(selected))}
-                      className="text-xs px-3 py-1 rounded-[9px] bg-ink text-white hover:opacity-80 transition font-medium"
+                      className="text-xs px-3 py-1 rounded-[9px] bg-ink text-onink hover:opacity-80 transition font-medium"
                     >
                       ▶ Practice ({selected.size})
                     </button>

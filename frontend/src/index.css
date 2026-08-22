@@ -18,6 +18,9 @@
   --color-muted: #6B6459;
   --color-ghost: #8f8879;
   --color-track: #EBE4D8;
+  /* Text and icons that sit ON a bg-ink surface. Plain white breaks in dark
+     mode, where --color-ink is itself near-white; this flips with the theme. */
+  --color-onink: #ffffff;
 }
 
 @layer base {
@@ -34,6 +37,7 @@
     --color-muted: #a09a90;
     --color-ghost: #7a7368;
     --color-track: #2e2b26;
+    --color-onink: #1a1917;
   }
 
   /* Classic light */
@@ -47,6 +51,7 @@
     --color-muted: #6b7280;
     --color-ghost: #9ca3af;
     --color-track: #f3f4f6;
+    --color-onink: #ffffff;
   }
 
   /* Classic dark */
@@ -58,6 +63,7 @@
     --color-muted: #9ca3af;
     --color-ghost: #6b7280;
     --color-track: #1f2937;
+    --color-onink: #111827;
   }
 
   body {

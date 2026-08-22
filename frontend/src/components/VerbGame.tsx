@@ -93,7 +93,7 @@ export default function VerbGame({ mode, sessionSize, onBack }: Props) {
         <p className="text-muted">{correct} of {total} correct</p>
         <div className="flex gap-3 justify-center pt-2">
           <button onClick={start}
-            className="px-5 py-2.5 bg-ink text-white rounded-[9px] text-sm font-semibold hover:opacity-80 transition">
+            className="px-5 py-2.5 bg-ink text-onink rounded-[9px] text-sm font-semibold hover:opacity-80 transition">
             Practise again
           </button>
           <button onClick={onBack}
@@ -171,7 +171,7 @@ export default function VerbGame({ mode, sessionSize, onBack }: Props) {
             <button
               onClick={() => submit(typed)}
               disabled={!typed.trim()}
-              className="w-full py-3 rounded-[9px] bg-ink text-white font-semibold hover:opacity-80 disabled:opacity-50 transition"
+              className="w-full py-3 rounded-[9px] bg-ink text-onink font-semibold hover:opacity-80 disabled:opacity-50 transition"
             >Check ↵</button>
           )}
         </div>
@@ -200,7 +200,7 @@ export default function VerbGame({ mode, sessionSize, onBack }: Props) {
           </div>
           <button
             onClick={advance}
-            className="w-full mt-4 py-3 rounded-[9px] bg-ink text-white font-semibold hover:opacity-80 transition"
+            className="w-full mt-4 py-3 rounded-[9px] bg-ink text-onink font-semibold hover:opacity-80 transition"
           >Continue ↵</button>
         </div>
       )}

@@ -76,7 +76,7 @@ export default function LearnPage() {
                 onClick={() => setSessionSize(size)}
                 className={`px-3 py-1.5 rounded-[9px] text-sm font-semibold transition-colors border ${
                   sessionSize === size
-                    ? 'bg-ink text-white border-ink'
+                    ? 'bg-ink text-onink border-ink'
                     : 'bg-surface border-border text-muted hover:border-muted'
                 }`}
               >
@@ -132,14 +132,14 @@ export default function LearnPage() {
                 {m.chip}
               </span>
               <div className="flex-1 min-w-0">
-                <div className={`font-semibold ${m.highlight ? 'text-white' : 'text-ink'}`}>
+                <div className={`font-semibold ${m.highlight ? 'text-onink' : 'text-ink'}`}>
                   {m.label}
                 </div>
-                <div className={`text-sm ${m.highlight ? 'text-white/70' : 'text-muted'}`}>
+                <div className={`text-sm ${m.highlight ? 'text-onink/70' : 'text-muted'}`}>
                   {m.desc}
                 </div>
               </div>
-              <span className={`transition-colors ${m.highlight ? 'text-white/60' : 'text-ghost group-hover:text-accent'}`}>→</span>
+              <span className={`transition-colors ${m.highlight ? 'text-onink/60' : 'text-ghost group-hover:text-accent'}`}>→</span>
             </button>
           ))}
         </div>

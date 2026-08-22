@@ -73,14 +73,16 @@ export default function TypeItMode({ question, onAnswer, feedback }: Props) {
               'border-border focus:border-ink'}
           `}
         />
+        {/* The feedback colours are fixed, so white stays right on them; only
+            the resting state sits on bg-ink, which inverts with the theme. */}
         <button
           onClick={submit}
           disabled={!input.trim() || submitted}
-          className={`w-full py-3 rounded-[9px] text-white font-semibold transition disabled:cursor-not-allowed
-            ${feedback?.correct  ? 'bg-moss' :
-              feedback?.almost   ? 'bg-amber-500' :
-              feedback           ? 'bg-red-500' :
-              'bg-ink hover:opacity-80 disabled:opacity-50'}`}
+          className={`w-full py-3 rounded-[9px] font-semibold transition disabled:cursor-not-allowed
+            ${feedback?.correct  ? 'bg-moss text-white' :
+              feedback?.almost   ? 'bg-amber-500 text-white' :
+              feedback           ? 'bg-red-500 text-white' :
+              'bg-ink text-onink hover:opacity-80 disabled:opacity-50'}`}
         >
           {!submitted      ? 'Check ↵' :
            !feedback       ? 'Checking…' :

@@ -50,7 +50,7 @@ function ChangePassword() {
       <button
         type="submit"
         disabled={busy || !current || !next}
-        className="px-4 py-2 bg-ink text-white rounded-lg text-sm font-medium hover:opacity-80 disabled:opacity-50 transition"
+        className="px-4 py-2 bg-ink text-onink rounded-lg text-sm font-medium hover:opacity-80 disabled:opacity-50 transition"
       >{busy ? '…' : 'Change password'}</button>
       {note && <p className="text-sm text-muted">{note}</p>}
     </form>

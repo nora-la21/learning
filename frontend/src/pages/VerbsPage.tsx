@@ -60,16 +60,16 @@ export default function VerbsPage() {
         {summary && summary.due > 0 && (
           <div className="bg-ink rounded-2xl p-5 mb-4 flex items-center gap-4">
             <div className="flex-1">
-              <p className="text-[11px] uppercase tracking-[.15em] text-white/50 font-medium mb-1">
+              <p className="text-[11px] uppercase tracking-[.15em] text-onink/50 font-medium mb-1">
                 Due for review
               </p>
-              <p className="text-white text-[22px] font-semibold leading-tight">
+              <p className="text-onink text-[22px] font-semibold leading-tight">
                 {summary.due} {summary.due === 1 ? 'form' : 'forms'} ready
               </p>
             </div>
             <button
               onClick={() => setMode('all_forms')}
-              className="px-5 py-2.5 bg-white text-ink rounded-[9px] text-sm font-semibold hover:opacity-90 transition"
+              className="px-5 py-2.5 bg-onink text-ink rounded-[9px] text-sm font-semibold hover:opacity-90 transition"
             >Review now →</button>
           </div>
         )}
@@ -102,7 +102,7 @@ export default function VerbsPage() {
                 key={n}
                 onClick={() => setSize(n)}
                 className={`px-3 py-1.5 rounded-[9px] text-sm font-semibold border transition-colors ${
-                  size === n ? 'bg-ink text-white border-ink'
+                  size === n ? 'bg-ink text-onink border-ink'
                              : 'bg-surface border-border text-muted hover:border-muted'
                 }`}
               >{n}</button>
@@ -124,14 +124,14 @@ export default function VerbsPage() {
                 {m.chip}
               </span>
               <div className="flex-1 min-w-0">
-                <div className={`font-semibold ${m.id === 'all_forms' ? 'text-white' : 'text-ink'}`}>
+                <div className={`font-semibold ${m.id === 'all_forms' ? 'text-onink' : 'text-ink'}`}>
                   {m.label}
                 </div>
-                <div className={`text-sm ${m.id === 'all_forms' ? 'text-white/70' : 'text-muted'}`}>
+                <div className={`text-sm ${m.id === 'all_forms' ? 'text-onink/70' : 'text-muted'}`}>
                   {m.blurb}
                 </div>
               </div>
-              <span className={m.id === 'all_forms' ? 'text-white/60' : 'text-ghost group-hover:text-accent'}>→</span>
+              <span className={m.id === 'all_forms' ? 'text-onink/60' : 'text-ghost group-hover:text-accent'}>→</span>
             </button>
           ))}
         </div>

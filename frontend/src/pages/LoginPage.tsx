@@ -75,7 +75,7 @@ export default function LoginPage({ onLogin }: { onLogin: () => void }) {
           <button
             type="submit"
             disabled={loading || !email || !password}
-            className="w-full bg-ink text-white font-medium rounded-xl py-3 text-sm hover:opacity-80 disabled:opacity-50 transition"
+            className="w-full bg-ink text-onink font-medium rounded-xl py-3 text-sm hover:opacity-80 disabled:opacity-50 transition"
           >
             {loading ? '…' : isSignup ? 'Create account' : 'Sign in'}
           </button>

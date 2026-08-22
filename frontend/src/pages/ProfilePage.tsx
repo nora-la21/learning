@@ -41,7 +41,7 @@ export default function ProfilePage() {
 
         <div className="bg-surface rounded-2xl border border-border overflow-hidden mb-4">
           <div className="flex items-center gap-4 p-5 border-b border-border">
-            <div className="w-12 h-12 rounded-full bg-ink text-white font-semibold flex items-center justify-center text-lg">
+            <div className="w-12 h-12 rounded-full bg-ink text-onink font-semibold flex items-center justify-center text-lg">
               {(me?.email ?? '?').slice(0, 1).toUpperCase()}
             </div>
             <div className="min-w-0">

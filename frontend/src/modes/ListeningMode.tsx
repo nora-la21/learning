@@ -74,7 +74,7 @@ export default function ListeningMode({ question, onAnswer, feedback }: Props) {
         <p className="text-[11px] uppercase tracking-[.14em] text-ghost font-medium">What does it mean?</p>
         <button
           onClick={replay}
-          className="w-24 h-24 rounded-full bg-ink text-white text-4xl hover:opacity-80 active:scale-95 transition-all shadow-lg mx-auto flex items-center justify-center"
+          className="w-24 h-24 rounded-full bg-ink text-onink text-4xl hover:opacity-80 active:scale-95 transition-all shadow-lg mx-auto flex items-center justify-center"
           title="Replay"
         >🔊</button>
         <p className="text-xs text-ghost">Click to replay</p>

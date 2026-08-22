@@ -269,7 +269,7 @@ export default function GameShell({ listId, mode, sessionSize = 10, wordIds, ski
 
       {/* Mode transition banner */}
       {modeTransition && (
-        <div className="rounded-xl px-5 py-4 text-center bg-ink text-white font-semibold animate-pulse">
+        <div className="rounded-xl px-5 py-4 text-center bg-ink text-onink font-semibold animate-pulse">
           Next up: {modeTransition}
         </div>
       )}
@@ -329,7 +329,7 @@ function FinishScreen({ xp, total, onBack, onReplay, onProgress }: {
       </div>
       <div className="flex flex-col gap-3 max-w-xs mx-auto">
         <button onClick={onReplay}
-          className="py-3 rounded-[9px] bg-ink text-white font-semibold hover:opacity-80 transition">
+          className="py-3 rounded-[9px] bg-ink text-onink font-semibold hover:opacity-80 transition">
           Practice Again
         </button>
         <button onClick={onProgress}
