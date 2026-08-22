@@ -95,6 +95,40 @@ def issue_session(user_id: int) -> str:
     return token
 
 
+def password_hash_for(user_id: int) -> str | None:
+    """Kept out of user_for_token, which runs on every request — the hash has
+    no business travelling through the whole app just to change a password."""
+    conn = get_db()
+    try:
+        row = conn.execute("SELECT password_hash FROM users WHERE id = ?",
+                           (user_id,)).fetchone()
+    finally:
+        conn.close()
+    return row["password_hash"] if row else None
+
+
+def set_password(user_id: int, password: str, *, keep_token: str | None = None) -> None:
+    """Rewrite the hash and drop every session but the caller's own.
+
+    A changed password that leaves other sessions alive has not really changed
+    anything, but throwing the user out of the page they are standing on is
+    needless.
+    """
+    conn = get_db()
+    try:
+        conn.execute("UPDATE users SET password_hash = ? WHERE id = ?",
+                     (hash_password(password), user_id))
+        if keep_token:
+            conn.execute(
+                "DELETE FROM auth_sessions WHERE user_id = ? AND token_hash <> ?",
+                (user_id, _token_fingerprint(keep_token)))
+        else:
+            conn.execute("DELETE FROM auth_sessions WHERE user_id = ?", (user_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
 def revoke_session(token: str) -> None:
     conn = get_db()
     try:

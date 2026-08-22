@@ -55,6 +55,12 @@ export async function login(email: string, password: string) {
   return data
 }
 
+export async function changePassword(currentPassword: string, newPassword: string) {
+  return post('/api/auth/change-password', {
+    current_password: currentPassword, new_password: newPassword,
+  })
+}
+
 export async function logout() {
   try {
     await fetch('/api/auth/logout', { method: 'POST', headers: authHeaders() })

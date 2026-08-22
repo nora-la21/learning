@@ -77,6 +77,32 @@ def login(body: Credentials):
     return {"token": auth.issue_session(row["id"]), "email": auth.normalize_email(body.email)}
 
 
+class PasswordChange(BaseModel):
+    current_password: str
+    new_password: str
+
+
+@router.post("/change-password")
+def change_password(body: PasswordChange, user=Depends(current_user),
+                    authorization: str | None = Header(default=None)):
+    """Change the password of the signed-in account.
+
+    The current password is required even though the caller already holds a
+    valid token: a token left behind on a shared machine should not be enough
+    to lock the owner out of their own account.
+    """
+    stored = auth.password_hash_for(user["id"])
+    if not stored or not auth.verify_password(body.current_password, stored):
+        raise HTTPException(status_code=403, detail="Current password is wrong")
+    if len(body.new_password) < auth.MIN_PASSWORD_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Password must be at least {auth.MIN_PASSWORD_LENGTH} characters",
+        )
+    auth.set_password(user["id"], body.new_password, keep_token=_bearer(authorization))
+    return {"ok": True}
+
+
 @router.post("/logout", status_code=204)
 def logout(authorization: str | None = Header(default=None)):
     token = _bearer(authorization)

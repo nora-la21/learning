@@ -2,8 +2,9 @@ import { useState } from 'react'
 import NavMenu from '../components/NavMenu'
 import ThemeToggle from '../components/ThemeToggle'
 import ReminderToggle from '../components/ReminderToggle'
+import PasswordInput from '../components/PasswordInput'
 import { api } from '../api/client'
-import { authHeaders } from '../api/auth'
+import { authHeaders, changePassword } from '../api/auth'
 
 function Section({ title, blurb, children }: {
   title: string; blurb: string; children: React.ReactNode
@@ -14,6 +15,45 @@ function Section({ title, blurb, children }: {
       <p className="text-sm text-muted mt-0.5 mb-4">{blurb}</p>
       {children}
     </div>
+  )
+}
+
+function ChangePassword() {
+  const [current, setCurrent] = useState('')
+  const [next, setNext] = useState('')
+  const [repeat, setRepeat] = useState('')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (next !== repeat) { setNote('The two new passwords do not match.'); return }
+    if (next.length < 8) { setNote('At least 8 characters.'); return }
+    setBusy(true); setNote('')
+    try {
+      await changePassword(current, next)
+      setNote('Password changed. Other devices have been signed out.')
+      setCurrent(''); setNext(''); setRepeat('')
+    } catch (err: any) {
+      setNote(err.message || 'Could not change the password')
+    } finally { setBusy(false) }
+  }
+
+  return (
+    <form onSubmit={submit} className="space-y-3">
+      <PasswordInput value={current} onChange={setCurrent}
+        placeholder="Current password" autoComplete="current-password" />
+      <PasswordInput value={next} onChange={setNext}
+        placeholder="New password" autoComplete="new-password" />
+      <PasswordInput value={repeat} onChange={setRepeat}
+        placeholder="Repeat new password" autoComplete="new-password" />
+      <button
+        type="submit"
+        disabled={busy || !current || !next}
+        className="px-4 py-2 bg-ink text-white rounded-lg text-sm font-medium hover:opacity-80 disabled:opacity-50 transition"
+      >{busy ? '…' : 'Change password'}</button>
+      {note && <p className="text-sm text-muted">{note}</p>}
+    </form>
   )
 }
 
@@ -94,6 +134,11 @@ export default function SettingsPage() {
       <div className="max-w-2xl mx-auto px-4 py-10">
         <p className="text-[11px] uppercase tracking-[.15em] text-accent font-medium mb-1">Account</p>
         <h1 className="text-3xl font-bold text-ink mb-6">Settings</h1>
+
+        <Section title="Password"
+                 blurb="Changing it signs out every other device. There is no email reset, so pick something you will remember.">
+          <ChangePassword />
+        </Section>
 
         <Section title="Appearance" blurb="Switch between the light, classic and dark themes.">
           <ThemeToggle />
