@@ -96,7 +96,7 @@ export const api = {
   resetAllProgress: () => req<void>('/progress/reset-all', { method: 'POST' }),
   getRecentWords: (days = 7) => req<RecentWord[]>(`/words/recent?days=${days}`),
 
-  getVerbs: () => req<IrregularVerb[]>('/verbs/'),
+  getVerbs: () => req<IrregularVerb[]>('/verbs'),
   getVerbSummary: () => req<VerbSummary>('/verbs/summary'),
   startVerbGame: (mode: VerbMode, sessionSize = 10) =>
     req<VerbStartResponse>('/verbs/game/start', {

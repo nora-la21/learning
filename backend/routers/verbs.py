@@ -55,6 +55,11 @@ def _now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
 
 
+# Both spellings, because Vercel's /api/:path* rewrite drops the trailing slash
+# on the way to the backend: FastAPI would answer /api/verbs with a 307 to
+# /api/verbs/ on the backend's own host, which the browser then hits
+# cross-origin. Answering both avoids the redirect entirely.
+@router.get("")
 @router.get("/")
 def list_verbs(user=Depends(current_user)):
     """The whole table, with this account's mastery per mode."""
