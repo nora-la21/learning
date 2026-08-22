@@ -6,6 +6,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Optional
 from database import get_db
 from services.scoping import known_join, NOT_KNOWN
+from services.text_match import loose
 
 _STRIP_PREFIXES = ("the ", "to ", "a ", "an ")
 
@@ -611,8 +612,15 @@ _NUMBER_WORDS: dict[str, str] = {
 
 
 def _normalize(text: str) -> str:
-    """Normalize for comparison: lowercase, strip commas/periods, map number words to digits."""
-    t = re.sub(r"[,\.]+", "", text.strip().lower()).strip()
+    """Normalize for comparison: fold typography, lowercase, strip commas and
+    periods, map number words to digits.
+
+    The fold has to come first. A phone writes "ik ben... jaar oud" with a single
+    U+2026 ellipsis, which the period-stripping regex does not match, so the
+    answer differed from the expected one by a character the learner could not
+    see on screen.
+    """
+    t = re.sub(r"[,\.]+", "", loose(text)).strip()
     t = re.sub(r"\s+", " ", t)
     return _NUMBER_WORDS.get(t, t)
 

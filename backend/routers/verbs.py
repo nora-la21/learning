@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from database import get_db
 from routers.auth import current_user
 from services.progress_engine import _response_quality, _sm2
+from services.text_match import loose
 
 router = APIRouter(prefix="/api/verbs", tags=["verbs"])
 
@@ -227,8 +228,10 @@ def answer(body: AnswerRequest, user=Depends(current_user)):
         if expected is None:
             raise HTTPException(status_code=400, detail=f"Unknown mode: {body.mode}")
 
-        given = body.answer.strip().lower()
-        target = str(expected).strip().lower()
+        # Folded, so a phone keyboard's curly apostrophe or ellipsis cannot mark
+        # a correct form wrong.
+        given = loose(body.answer)
+        target = loose(str(expected))
         # "hebben/zijn" is also written "hebben, zijn"; accept either shape.
         correct = given == target or (
             body.mode == "auxiliary"
